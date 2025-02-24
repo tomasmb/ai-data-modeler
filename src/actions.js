@@ -165,3 +165,71 @@ export const saveDataModelSchema = async ({ dataModelId, schema }, context) => {
     throw new HttpError(500, 'Internal server error while saving schema');
   }
 };
+
+export const sendChatMessage = async ({ dataModelId, content }, context) => {
+  if (!context.user) { throw new HttpError(401) }
+
+  // Check if user has access to this data model
+  const dataModel = await context.entities.DataModel.findUnique({
+    where: { id: parseInt(dataModelId) }
+  });
+
+  if (!dataModel) { throw new HttpError(404, 'Data model not found') }
+  if (dataModel.userId !== context.user.id) { throw new HttpError(403) }
+
+  // Save user's message
+  const userMessage = await context.entities.ChatMessage.create({
+    data: {
+      content,
+      sender: 'user',
+      dataModelId: parseInt(dataModelId)
+    }
+  });
+
+  // Get AI response
+  try {
+    const openaiResponse = await getAIResponse(content);
+    
+    // Save AI's response
+    const aiMessage = await context.entities.ChatMessage.create({
+      data: {
+        content: openaiResponse,
+        sender: 'ai',
+        dataModelId: parseInt(dataModelId)
+      }
+    });
+
+    return { userMessage, aiMessage };
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    throw new HttpError(500, 'Failed to get AI response');
+  }
+}
+
+async function getAIResponse(userMessage) {
+  const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+  
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o',
+        messages: [
+          { role: 'system', content: 'You are a helpful AI assistant for data modeling.' },
+          { role: 'user', content: userMessage }
+        ],
+        temperature: 0.7,
+      }),
+    });
+
+    const data = await response.json();
+    return data.choices[0].message.content;
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    throw error;
+  }
+}

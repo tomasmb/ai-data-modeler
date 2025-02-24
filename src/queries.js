@@ -95,3 +95,21 @@ export const getDataModelSchema = async ({ dataModelId }, context) => {
     dataModel
   };
 };
+
+export const getDataModelChatHistory = async ({ dataModelId }, context) => {
+  if (!context.user) { throw new HttpError(401) }
+
+  const dataModel = await context.entities.DataModel.findUnique({
+    where: { id: parseInt(dataModelId) },
+    include: {
+      chatMessages: {
+        orderBy: { timestamp: 'asc' }
+      }
+    }
+  });
+
+  if (!dataModel) { throw new HttpError(404, 'Data model not found') }
+  if (dataModel.userId !== context.user.id) { throw new HttpError(403) }
+
+  return dataModel.chatMessages;
+}

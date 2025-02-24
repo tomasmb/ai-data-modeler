@@ -66,3 +66,13 @@ page DataModelDetailPage {
   component: import DataModelDetailPage from "@src/pages/DataModelDetail/index.jsx",
   authRequired: true
 }
+
+action sendChatMessage {
+  fn: import { sendChatMessage } from "@src/actions.js",
+  entities: [DataModel, ChatMessage]
+}
+
+query getDataModelChatHistory {
+  fn: import { getDataModelChatHistory } from "@src/queries.js",
+  entities: [DataModel, ChatMessage]
+}

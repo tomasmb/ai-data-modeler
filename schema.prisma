@@ -27,6 +27,7 @@ model DataModel {
     // Relations to actual model components
     entities    ModelEntity[]
     relations   Relation[]
+    chatMessages ChatMessage[]
 }
 
 model ModelEntity {
@@ -76,6 +77,15 @@ model Relation {
     dataModelId Int
     createdAt   DateTime  @default(now())
     updatedAt   DateTime  @updatedAt
+}
+
+model ChatMessage {
+    id          Int       @id @default(autoincrement())
+    content     String
+    sender      String    // 'user' or 'ai'
+    timestamp   DateTime  @default(now())
+    dataModel   DataModel @relation(fields: [dataModelId], references: [id])
+    dataModelId Int
 }
 
 enum DbType {

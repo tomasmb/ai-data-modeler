@@ -102,7 +102,7 @@ const DataModelPage = () => {
 
       {/* Main Content */}
       <div className='flex gap-4 mb-6'>
-        <AIAssistant jsonData={jsonEditor} onUpdateJson={setJsonEditor} />
+        <AIAssistant dataModelId={id} />
         <CodeEditor
           dataModelId={id}
           modelData={modelData}
