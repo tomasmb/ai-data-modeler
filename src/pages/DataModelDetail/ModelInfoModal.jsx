@@ -227,6 +227,17 @@ const ModelInfoModal = ({ isOpen, onClose, collectedInfo, onUpdate }) => {
         
         <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-8">
+            {collectedInfo.projectDetails?.suggestedDataModel && (
+              <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-6">
+                <h3 className="text-xl font-semibold text-blue-800 mb-2">Suggested Data Model</h3>
+                <div className="prose max-w-none">
+                  <pre className="bg-white p-3 rounded shadow-sm overflow-x-auto">
+                    {collectedInfo.projectDetails.suggestedDataModel}
+                  </pre>
+                </div>
+              </div>
+            )}
+            
             {Object.entries(collectedInfo).map(([section, sectionData]) => (
               <div key={section}>
                 {renderSection(section, sectionData)}
