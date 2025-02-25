@@ -114,6 +114,9 @@ const AIAssistant = ({ dataModelId }) => {
     }
   }, [chatHistory]);
 
+  // Add a mounting ref to prevent multiple initializations
+  const isMounted = useRef(false);
+
   // Handle step initialization
   const initializeStep = async (step) => {
     // Check if step is already initialized
@@ -162,7 +165,8 @@ const AIAssistant = ({ dataModelId }) => {
 
   // Initialize first step on component mount
   useEffect(() => {
-    if (chatHistory.length === 0 && !initializedSteps.has('projectDetails')) {
+    if (!isMounted.current && chatHistory.length === 0 && !initializedSteps.has('projectDetails')) {
+      isMounted.current = true;
       initializeStep('projectDetails');
     }
   }, [chatHistory]);

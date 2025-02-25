@@ -11,8 +11,8 @@ const DataModelPage = () => {
   const { data: modelData, isLoadingSchema, errorSchema } = useQuery(getDataModelSchema, { dataModelId: id });
   const isNewModel = id === 'new';
   const { data: model, isLoading, error } = useQuery(
-    isNewModel ? null : getDataModel,
-    { id }
+    getDataModel,
+    isNewModel ? null : { id }
   );
 
   // State for form fields and editor
@@ -54,8 +54,8 @@ const DataModelPage = () => {
     }
   };
 
-  if (isLoading || isLoadingSchema) return 'Loading...';
-  if (error || errorSchema) return 'Error: ' + (error || errorSchema);
+  if (!isNewModel && (isLoading || isLoadingSchema)) return 'Loading...';
+  if (!isNewModel && (error || errorSchema)) return 'Error: ' + (error || errorSchema);
 
   return (
     <div className='p-4 bg-gray-50 min-h-screen'>
