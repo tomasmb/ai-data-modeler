@@ -9,7 +9,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-export const createDataModel = async ({ name, version, description }, context) => {
+export const createDataModel = async ({ name, version = '0.1', description }, context) => {
   if (!context.user) { throw new HttpError(401) };
   const newDataModel = await context.entities.DataModel.create({
     data: {
