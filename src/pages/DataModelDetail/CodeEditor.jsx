@@ -2,6 +2,112 @@ import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { saveDataModelSchema } from 'wasp/client/operations';
 import { ExampleSchemaModal } from './ExampleSchemaModal';
+import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+
+const SchemaHintsModal = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg w-full max-w-2xl">
+        <div className="flex justify-between items-center p-4 border-b">
+          <h2 className="text-xl font-semibold">Data Model Schema Guide</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+          {/* Basic Syntax Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Basic Entity Syntax</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <pre className="text-sm text-gray-700">
+{`entity User {
+  id: ID
+  name: string
+  age: number
+  isActive: boolean
+  createdAt: datetime
+}`}</pre>
+            </div>
+          </div>
+
+          {/* Field Types Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Available Field Types</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2 text-gray-700">Basic Types</h4>
+                <ul className="space-y-1 text-sm text-gray-600">
+                  <li><code className="text-blue-600">string</code> - Text values</li>
+                  <li><code className="text-blue-600">number</code> - Numeric values</li>
+                  <li><code className="text-blue-600">boolean</code> - True/false values</li>
+                  <li><code className="text-blue-600">datetime</code> - Date and time</li>
+                  <li><code className="text-blue-600">ID</code> - Unique identifier</li>
+                </ul>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2 text-gray-700">Relation Types</h4>
+                <ul className="space-y-1 text-sm text-gray-600">
+                  <li><code className="text-blue-600">Entity</code> - Single relation</li>
+                  <li><code className="text-blue-600">Entity[]</code> - Array relation</li>
+                  <li><code className="text-blue-600">Entity.field</code> - Field reference</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Relations Example Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Relations Example</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <pre className="text-sm text-gray-700">
+{`entity User {
+  id: ID
+  posts: Post[]      // One-to-many relation
+  profile: Profile   // One-to-one relation
+}
+
+entity Post {
+  id: ID
+  author: User       // Reference to User
+  title: string
+  authorName: User.name  // Field reference
+}`}</pre>
+            </div>
+          </div>
+
+          {/* Rules and Tips Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Important Rules</h3>
+            <ul className="space-y-2 text-sm text-gray-600 list-disc pl-5">
+              <li>Field names must contain only letters, numbers, and underscores</li>
+              <li>Entity names should start with a capital letter</li>
+              <li>Comments are supported using <code className="text-blue-600">//</code></li>
+              <li>Each field must have a type declaration after the colon</li>
+              <li>Referenced entities must be defined in the schema</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="border-t p-4 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const CodeEditor = ({ dataModelId, modelData }) => {
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
@@ -9,6 +115,7 @@ const CodeEditor = ({ dataModelId, modelData }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [editorValue, setEditorValue] = useState('');
   const [isExampleModalOpen, setIsExampleModalOpen] = useState(false);
+  const [isHintVisible, setIsHintVisible] = useState(false);
 
   // Initialize editor with data from the server
   useEffect(() => {
@@ -301,13 +408,19 @@ const CodeEditor = ({ dataModelId, modelData }) => {
         </div>
         <MemoizedEditor value={editorValue} />
         <div className='mt-4 text-sm text-gray-600'>
-          <h3 className='font-semibold mb-2'>Quick Reference:</h3>
-          <ul className='list-disc pl-4 space-y-1'>
-            <li>Use <code className='bg-gray-100 px-1'>entity EntityName {'{'}</code> to define a new entity</li>
-            <li>Basic types: <code className='bg-gray-100 px-1'>string</code>, <code className='bg-gray-100 px-1'>number</code>, <code className='bg-gray-100 px-1'>boolean</code>, <code className='bg-gray-100 px-1'>datetime</code>, <code className='bg-gray-100 px-1'>ID</code></li>
-            <li>Relations: Use entity names as types (e.g., <code className='bg-gray-100 px-1'>user: User</code>)</li>
-            <li>Arrays: Add <code className='bg-gray-100 px-1'>[]</code> for multiple relations (e.g., <code className='bg-gray-100 px-1'>posts: Post[]</code>)</li>
-          </ul>
+          <button
+            className='inline-flex items-center text-gray-600 hover:text-gray-800'
+            aria-label="Show schema hints"
+            onClick={() => setIsHintVisible(true)}
+          >
+            <QuestionMarkCircleIcon className="h-5 w-5" />
+            <span className='ml-2'>Schema Hints</span>
+          </button>
+          
+          <SchemaHintsModal
+            isOpen={isHintVisible}
+            onClose={() => setIsHintVisible(false)}
+          />
         </div>
       </div>
 
