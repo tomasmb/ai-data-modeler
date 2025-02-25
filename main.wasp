@@ -76,3 +76,8 @@ query getDataModelChatHistory {
   fn: import { getDataModelChatHistory } from "@src/queries.js",
   entities: [DataModel, ChatMessage]
 }
+
+action saveDataModelRequirements {
+  fn: import { saveDataModelRequirements } from "@src/actions.js",
+  entities: [DataModel]
+}

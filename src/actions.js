@@ -9,7 +9,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-export const createDataModel = async ({ name, version = '0.1', description }, context) => {
+export const createDataModel = async ({ name, version = '1', description }, context) => {
   if (!context.user) { throw new HttpError(401) };
   const newDataModel = await context.entities.DataModel.create({
     data: {
@@ -181,7 +181,7 @@ function getDefaultStepQuestion(step) {
 4. Your target market
 5. Any specific security requirements
 
-Let's start with the first point - what type of application are you building?`;
+Answer these questions so we can get started.`;
 
     case 'functionalRequirements':
       return `I'll help you define your functional requirements. We'll need to cover:
@@ -192,7 +192,7 @@ Let's start with the first point - what type of application are you building?`;
 5. Data access patterns and search requirements
 6. Reporting needs
 
-Let's begin with the user types - who are the main types of users that will interact with your system?`;
+With these requirements, we can start building your data model.`;
 
     case 'nonFunctionalRequirements':
       return `Let's define your technical requirements. We'll need to discuss:
@@ -203,7 +203,7 @@ Let's begin with the user types - who are the main types of users that will inte
 5. Geographic distribution needs
 6. Data retention and archival requirements
 
-First, could you tell me about your expected peak concurrent users and average daily traffic?`;
+With this information we can optimize the data model.`;
 
     default:
       return "How can I help you with your data model?";
@@ -577,4 +577,16 @@ function validateStepCompletion(info, step) {
     default:
       return false;
   }
+}
+
+export const saveDataModelRequirements = async (args, context) => {
+  const { dataModelId, requirements } = args;
+  
+  // You might want to create a new entity for requirements or add them to your DataModel entity
+  return await context.entities.DataModel.update({
+    where: { id: parseInt(dataModelId) },
+    data: {
+      requirements: requirements // Assuming you have a JSON field for requirements
+    }
+  });
 }

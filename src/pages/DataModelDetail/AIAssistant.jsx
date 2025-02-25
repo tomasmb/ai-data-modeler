@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery, getDataModelChatHistory, sendChatMessage } from 'wasp/client/operations';
+import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements } from 'wasp/client/operations';
 
 const AIAssistant = ({ dataModelId }) => {
   const [message, setMessage] = useState('');
@@ -9,78 +9,81 @@ const AIAssistant = ({ dataModelId }) => {
   const [phase, setPhase] = useState('structured'); // 'structured' or 'free'
   const [currentStep, setCurrentStep] = useState('projectDetails'); // 'projectDetails', 'functionalRequirements', 'nonFunctionalRequirements'
   const [chatMode, setChatMode] = useState('questions'); // 'questions' or 'modifications'
-  const [collectedInfo, setCollectedInfo] = useState({
-    projectDetails: {
-      type: null, // e.g., "saas", "ecommerce", "social platform"
-      description: null,
-      industry: null,
-      targetMarket: null, // e.g., "B2B", "B2C", "Enterprise"
-      securityRequirements: null, // e.g., "HIPAA", "GDPR", "SOC2"
-      completed: false
-    },
-    functionalRequirements: {
-      userStories: [], // high-level business capabilities
-      userTypes: [], // types of users and their roles
-      keyFeatures: [], // main features and capabilities
-      businessProcesses: [], // key workflows in the system
-      integrations: [], // external systems to integrate with
-      dataAccess: {
-        accessPatterns: [], // how data will be accessed/queried
-        searchRequirements: [], // what needs to be searchable
-        filteringNeeds: [], // common filtering scenarios
+  const [collectedInfo, setCollectedInfo] = useState(() => {
+    const saved = localStorage.getItem(`collectedInfo-${dataModelId}`);
+    return saved ? JSON.parse(saved) : {
+      projectDetails: {
+        type: null, // e.g., "saas", "ecommerce", "social platform"
+        description: null,
+        industry: null,
+        targetMarket: null, // e.g., "B2B", "B2C", "Enterprise"
+        securityRequirements: null, // e.g., "HIPAA", "GDPR", "SOC2"
+        completed: false
       },
-      reportingNeeds: [], // business intelligence requirements
-      completed: false
-    },
-    nonFunctionalRequirements: {
-      dataOperations: {
-        heavyRead: {
-          entities: [],
-          frequency: null,
-          patterns: [], // e.g., "batch reads", "real-time queries"
+      functionalRequirements: {
+        userStories: [], // high-level business capabilities
+        userTypes: [], // types of users and their roles
+        keyFeatures: [], // main features and capabilities
+        businessProcesses: [], // key workflows in the system
+        integrations: [], // external systems to integrate with
+        dataAccess: {
+          accessPatterns: [], // how data will be accessed/queried
+          searchRequirements: [], // what needs to be searchable
+          filteringNeeds: [], // common filtering scenarios
         },
-        heavyWrite: {
-          entities: [],
-          frequency: null,
-          patterns: [], // e.g., "bulk uploads", "streaming updates"
+        reportingNeeds: [], // business intelligence requirements
+        completed: false
+      },
+      nonFunctionalRequirements: {
+        dataOperations: {
+          heavyRead: {
+            entities: [],
+            frequency: null,
+            patterns: [], // e.g., "batch reads", "real-time queries"
+          },
+          heavyWrite: {
+            entities: [],
+            frequency: null,
+            patterns: [], // e.g., "bulk uploads", "streaming updates"
+          },
+          readWriteRatio: null,
+          consistencyRequirements: [], // which entities need strong consistency
         },
-        readWriteRatio: null,
-        consistencyRequirements: [], // which entities need strong consistency
-      },
-      traffic: {
-        peakConcurrentUsers: null,
-        averageDailyUsers: null,
-        growthProjection: null,
-        geographicDistribution: null,
-        peakHours: null,
-        seasonality: null,
-      },
-      dataVolume: {
-        initialSize: null,
-        growthRate: null,
-        recordSizeLimits: null,
-        dataRetentionRequirements: null,
-        archivalNeeds: null,
-      },
-      performance: {
-        expectedLatency: null,
-        criticalOperations: [],
-        slaRequirements: null,
-        cacheableEntities: [], // entities that can be cached
-      },
-      availability: {
-        upTimeRequirements: null,
-        backupRequirements: null,
-        disasterRecovery: null,
-        multiRegion: null,
-      },
-      compliance: {
-        dataResidency: null,
-        auditRequirements: null,
-        dataPrivacy: null,
-      },
-      completed: false
-    }
+        traffic: {
+          peakConcurrentUsers: null,
+          averageDailyUsers: null,
+          growthProjection: null,
+          geographicDistribution: null,
+          peakHours: null,
+          seasonality: null,
+        },
+        dataVolume: {
+          initialSize: null,
+          growthRate: null,
+          recordSizeLimits: null,
+          dataRetentionRequirements: null,
+          archivalNeeds: null,
+        },
+        performance: {
+          expectedLatency: null,
+          criticalOperations: [],
+          slaRequirements: null,
+          cacheableEntities: [], // entities that can be cached
+        },
+        availability: {
+          upTimeRequirements: null,
+          backupRequirements: null,
+          disasterRecovery: null,
+          multiRegion: null,
+        },
+        compliance: {
+          dataResidency: null,
+          auditRequirements: null,
+          dataPrivacy: null,
+        },
+        completed: false
+      }
+    };
   });
   
   const { data: chatHistory = [] } = useQuery(getDataModelChatHistory, { dataModelId });
@@ -97,6 +100,14 @@ const AIAssistant = ({ dataModelId }) => {
       JSON.stringify([...initializedSteps])
     );
   }, [initializedSteps, dataModelId]);
+
+  // Add effect to save collectedInfo to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem(
+      `collectedInfo-${dataModelId}`,
+      JSON.stringify(collectedInfo)
+    );
+  }, [collectedInfo, dataModelId]);
 
   // Calculate progress based on completed steps
   const calculateProgress = useCallback(() => {
@@ -231,6 +242,16 @@ const AIAssistant = ({ dataModelId }) => {
             setCurrentStep(nextStep);
             await initializeStep(nextStep); // Initialize the next step
           } else {
+            // Save requirements to database when structured phase is complete
+            try {
+              await saveDataModelRequirements({
+                dataModelId,
+                requirements: collectedInfo
+              });
+            } catch (error) {
+              console.error('Error saving requirements:', error);
+            }
+            
             setPhase('free');
             setChatMode('questions');
           }
