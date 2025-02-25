@@ -400,6 +400,15 @@ aspects they might not have thought about.`;
         - Well-defined target market
         - Comprehensive security requirements
 
+        IMPORTANT: Once you have sufficient information about the project, you MUST suggest an appropriate data model type:
+        - SQL/Relational: For structured data with complex relationships and ACID requirements
+        - NoSQL/Document: For semi-structured data, flexible schema, and horizontal scaling
+        - Graph: For highly connected data with complex relationships
+        - Time-series: For time-ordered data with high write throughput
+        - Columnar: For analytical workloads and data warehousing
+        
+        Explain your recommendation based on the project's specific needs, access patterns, and scale requirements.
+        
         Ask focused questions until all these aspects are clearly understood.
       `;
       jsonSchema = {
@@ -634,9 +643,41 @@ Use this context to:
   });
 
   const response = JSON.parse(completion.choices[0].message.content);
-  response.completed = validateStepCompletion(response.updatedInfo, context.step);
+  response.completed = validateStepCompletion(response.updatedInfo, context.step) === true;
+  
+  // Add completion message if the step is now completed
+  if (response.completed) {
+    const nextStep = getNextStep(context.step);
+    response.message = `Thank you for providing all the necessary information for this step! ${
+      nextStep ? `We'll now continue with the ${formatStepName(nextStep)} step.` : 
+      "We've completed all the required information gathering steps!"
+    }
+    
+${response.message}`;
+  }
   
   return response;
+}
+
+// Helper function to get the next step
+function getNextStep(currentStep) {
+  const steps = ['projectDetails', 'functionalRequirements', 'nonFunctionalRequirements'];
+  const currentIndex = steps.indexOf(currentStep);
+  return currentIndex < steps.length - 1 ? steps[currentIndex + 1] : null;
+}
+
+// Helper function to format step name for display
+function formatStepName(step) {
+  switch(step) {
+    case 'projectDetails':
+      return 'Project Details';
+    case 'functionalRequirements':
+      return 'Functional Requirements';
+    case 'nonFunctionalRequirements':
+      return 'Non-Functional Requirements';
+    default:
+      return step;
+  }
 }
 
 // Helper function to identify missing or incomplete fields

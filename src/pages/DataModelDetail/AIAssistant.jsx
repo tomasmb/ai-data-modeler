@@ -392,7 +392,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
           setPreviousQuestion(response.followUpQuestion);
 
           // Handle step completion and phase transition
-          if (response.completed) {
+          if (response.completed === true) {
             const nextStep = (() => {
               switch (currentStep) {
                 case 'projectDetails':
