@@ -755,16 +755,19 @@ Design Principles:
       },
       schema: {
         type: 'object',
+        additionalProperties: false,
         properties: {
           entities: {
             type: 'object',
             additionalProperties: {
               type: 'object',
+              additionalProperties: false,
               properties: {
                 fields: {
                   type: 'object',
                   additionalProperties: {
                     type: 'object',
+                    additionalProperties: false,
                     properties: {
                       type: { type: 'string' },
                       isArray: { type: 'boolean' },
@@ -778,17 +781,26 @@ Design Principles:
                         items: { type: 'string' }
                       }
                     },
-                    required: ['type']
+                    required: [
+                      'type',
+                      'isArray',
+                      'isUnique',
+                      'isIndex',
+                      'isPrimary',
+                      'isNullable',
+                      'defaultValue',
+                      'enumValues'
+                    ]
                   }
                 }
-              },
-              required: ['fields']
+              }
             }
           },
           relations: {
             type: 'object',
             additionalProperties: {
               type: 'object',
+              additionalProperties: false,
               properties: {
                 fromEntity: { type: 'string' },
                 toEntity: { type: 'string' },
@@ -797,11 +809,17 @@ Design Principles:
                 cardinality: { type: 'string' },
                 isNullable: { type: 'boolean' }
               },
-              required: ['fromEntity', 'toEntity', 'fieldName', 'cardinality']
+              required: [
+                'fromEntity',
+                'toEntity',
+                'fieldName',
+                'referencedField',
+                'cardinality',
+                'isNullable'
+              ]
             }
           }
         },
-        required: ['entities', 'relations']
       },
       supportedFeatures: {
         type: 'array',
@@ -836,17 +854,21 @@ Consider:
 
   try {
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
+      model: 'gpt-4o',
       messages,
       temperature: 0.7,
       response_format: { 
         type: "json_schema",
-        schema: jsonSchema
+        json_schema: {
+          name: 'data_model_assistant',
+          strict: true,
+          schema: jsonSchema
+        },
       }
     });
 
     const response = JSON.parse(completion.choices[0].message.content);
-    
+    console.log(response);
     // Convert the JSON schema format to DSL string format
     const schemaString = Object.entries(response.schema.entities)
       .map(([entityName, entityData]) => {
@@ -881,6 +903,7 @@ Consider:
       })
       .join('\n\n');
 
+    console.log(schemaString);
     // Now validate the converted schema string
     const parsedSchema = parseDataModelSchema(schemaString);
     if (!parsedSchema.isValid) {
@@ -890,6 +913,7 @@ Consider:
       });
     }
 
+    console.log(parsedSchema);
     return {
       explanation: response.explanation,
       schema: schemaString,

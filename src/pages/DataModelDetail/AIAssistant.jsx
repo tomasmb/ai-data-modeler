@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements, generateDataModel, saveDataModelSchema } from 'wasp/client/operations';
 
-const AIAssistant = ({ dataModelId }) => {
+const AIAssistant = ({ dataModelId, onSchemaGenerated }) => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
@@ -213,15 +213,19 @@ const AIAssistant = ({ dataModelId }) => {
   const handlePhaseTransition = async () => {
     setIsGenerating(true);
     try {
+      // Generate the schema
       const result = await generateDataModel({
         requirements: collectedInfo
       });
 
-      // Update the CodeEditor with the generated schema
-      if (result.schema) {
-        // The parent component (index.jsx) should handle this
-        onSchemaGenerated(result.schema);
-      }
+      // Save the generated schema to the database
+      await saveDataModelSchema({
+        dataModelId,
+        schema: result.schema
+      });
+
+      // Update the CodeEditor via parent component
+      onSchemaGenerated(result.schema);
 
       // Show the explanation in a modal or toast
       setGenerationExplanation(result.explanation);
@@ -229,9 +233,41 @@ const AIAssistant = ({ dataModelId }) => {
       // Move to free phase
       setPhase('free');
       setChatMode('questions');
+
+      // Force a refresh of the page to get the latest schema
+      window.location.reload();
     } catch (error) {
       console.error('Error generating schema:', error);
       setGenerationError(error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Add this new function
+  const handleTestGeneration = async () => {
+    setIsGenerating(true);
+    try {
+      // Generate the schema
+      const result = await generateDataModel({
+        requirements: collectedInfo
+      });
+
+      // Save the generated schema to the database
+      await saveDataModelSchema({
+        dataModelId,
+        schema: result.schema
+      });
+
+      // Update the CodeEditor via parent component
+      onSchemaGenerated(result.schema);
+      
+      // Show success message (you might want to add a toast notification here)
+      console.log('Schema generated successfully!');
+      
+    } catch (error) {
+      console.error('Error generating schema:', error);
+      // Show error message (you might want to add a toast notification here)
     } finally {
       setIsGenerating(false);
     }
@@ -394,6 +430,13 @@ const AIAssistant = ({ dataModelId }) => {
         <div className='flex-shrink-0'>
           {phase === 'structured' && (
             <div className='flex items-center gap-2'>
+              <button
+                onClick={handleTestGeneration}
+                className="px-3 py-1 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
+                disabled={isGenerating}
+              >
+                {isGenerating ? 'Generating...' : 'Test Generate'}
+              </button>
               <div className='h-2 w-24 bg-gray-200 rounded-full overflow-hidden'>
                 <div 
                   className='h-full bg-blue-500 transition-all duration-300'

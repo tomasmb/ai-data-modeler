@@ -47,8 +47,8 @@ const DataModelPage = () => {
     );
   }
 
-  // Skip queries if we're creating a new model
-  const { data: modelData, isLoadingSchema, errorSchema } = useQuery(
+  // Add refetch function from useQuery
+  const { data: modelData, isLoadingSchema, errorSchema, refetch: refetchSchema } = useQuery(
     getDataModelSchema, 
     { dataModelId: id },
     { enabled: !isNewModel && !!id }
@@ -100,11 +100,14 @@ const DataModelPage = () => {
     }
   };
 
-  const handleSchemaGenerated = (schema) => {
-    // Update the CodeEditor with the new schema
+  const handleSchemaGenerated = async (schema) => {
+    // Update the local state
     if (modelData) {
       modelData.schema = schema;
     }
+    
+    // Refetch the schema data to ensure we have the latest version
+    await refetchSchema();
   };
 
   if (isLoading || isLoadingSchema) return 'Loading...';
