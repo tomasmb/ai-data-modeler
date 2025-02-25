@@ -694,55 +694,28 @@ export const generateDataModel = async ({ requirements }, ctx) => {
 
   const messages = [];
   
-  const systemPrompt = `You are an expert data modeler tasked with generating a precise data model schema.
-You will analyze the provided requirements and create a schema that follows our specific syntax.
+  const systemPrompt = `You are an expert data modeler tasked with generating a precise data model schema in JSON format.
+You will analyze the provided requirements and create a comprehensive data model.
 
-Schema Syntax Rules:
-1. Entity declarations use the 'entity' keyword followed by PascalCase name
-2. Fields are declared with camelCase names followed by their type
-3. Available built-in types: string, number, boolean, datetime, ID, int, float, decimal, date, time, json, text, email, url, uuid, bigint, binary, enum
-4. Field modifiers: @unique, @index, @primary, @nullable(true), @default(value)
-5. Relations are expressed through field types referencing other entities
-6. Array relations use [] suffix
-7. Enum fields use enum(value1,value2,value3) syntax
+Your output must follow this JSON schema structure exactly:
+- entities: An object where keys are entity names (PascalCase) and values contain their field definitions
+- Each entity has a "fields" object where keys are field names (camelCase) and values define field properties
+- Field properties include type, constraints, and relationship information
 
-Example Valid Schema:
-entity User {
-  id: ID @primary @unique
-  email: string @unique @index
-  name: string @nullable(true)
-  role: enum(admin,user,guest) @default(user)
-  profile: Profile  // 1:1 relation
-  posts: Post[]     // 1:n relation
-}
-
-entity Profile {
-  id: ID @primary
-  userId: ID @unique @index
-  bio: text @nullable(true)
-  avatar: string @nullable(true)
-  status: enum(active,inactive) @default(active)
-  lastLogin: datetime @nullable(true)
-}
-
-entity Post {
-  id: ID @primary
-  title: string @index
-  content: text @nullable(true)
-  status: enum(draft,published,archived) @default(draft)
-  authorId: ID @index
-  author: User
-  createdAt: datetime @default(now)
-  updatedAt: datetime
-}
+For field types:
+- Use standard types: string, number, boolean, datetime, ID, int, float, decimal, date, time, json, text, email, url, uuid, bigint, binary
+- For enum fields, provide the possible values in the "enumValues" array
+- For relationships to other entities, use the entity name as the type
+- For relationships that reference a specific field, use "EntityName.fieldName" format
+- For array/collection relationships, set "isArray" to true
 
 Design Principles:
 1. Every entity must have an ID field as primary key
-2. Use appropriate indexes (@index) for frequently queried fields
+2. Use appropriate indexes for frequently queried fields
 3. Consider query patterns when designing relations
-4. Add proper constraints (@unique, @nullable) based on business rules
+4. Add proper constraints based on business rules
 5. Use enum types for fields with fixed value sets
-6. Add default values (@default) where appropriate
+6. Add default values where appropriate
 7. Consider data validation and integrity requirements`;
 
   const jsonSchema = {
@@ -849,7 +822,12 @@ Consider:
 2. Heavy read/write entities from dataOperations
 3. Performance requirements for critical operations
 4. Data volume and growth expectations
-5. Security and compliance needs`
+5. Security and compliance needs
+
+IMPORTANT: For entity relationships, when an entity field references another entity:
+- Set the "type" to the entity name (e.g., "User") for basic references
+- For specific field references, use dot notation: "EntityName.fieldName" (e.g., "User.id")
+- Set "isArray" to true for one-to-many or many-to-many relationships`
   });
 
   try {
@@ -868,7 +846,7 @@ Consider:
     });
 
     const response = JSON.parse(completion.choices[0].message.content);
-    console.log(response);
+    
     // Convert the JSON schema format to DSL string format
     const schemaString = Object.entries(response.schema.entities)
       .map(([entityName, entityData]) => {
@@ -877,9 +855,10 @@ Consider:
             let fieldLine = `  ${fieldName}: `;
             
             // Handle enum type
-            if (fieldConfig.enumValues) {
+            if (fieldConfig.enumValues && fieldConfig.enumValues.length > 0) {
               fieldLine += `enum(${fieldConfig.enumValues.join(',')})`;
             } else {
+              // Use the type directly - it should already include any entity.field references
               fieldLine += fieldConfig.type + (fieldConfig.isArray ? '[]' : '');
             }
 
@@ -903,7 +882,6 @@ Consider:
       })
       .join('\n\n');
 
-    console.log(schemaString);
     // Now validate the converted schema string
     const parsedSchema = parseDataModelSchema(schemaString);
     if (!parsedSchema.isValid) {
@@ -913,7 +891,6 @@ Consider:
       });
     }
 
-    console.log(parsedSchema);
     return {
       explanation: response.explanation,
       schema: schemaString,
