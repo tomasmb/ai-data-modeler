@@ -701,47 +701,49 @@ Schema Syntax Rules:
 1. Entity declarations use the 'entity' keyword followed by PascalCase name
 2. Fields are declared with camelCase names followed by their type
 3. Available built-in types: string, number, boolean, datetime, ID, int, float, decimal, date, time, json, text, email, url, uuid, bigint, binary, enum
-4. Field modifiers: @unique, @index, @primary, @nullable, @default
+4. Field modifiers: @unique, @index, @primary, @nullable(true), @default(value)
 5. Relations are expressed through field types referencing other entities
 6. Array relations use [] suffix
+7. Enum fields use enum(value1,value2,value3) syntax
 
 Example Valid Schema:
 entity User {
-  id: ID @primary
-  email: string @unique
+  id: ID @primary @unique
+  email: string @unique @index
+  name: string @nullable(true)
+  role: enum(admin,user,guest) @default(user)
   profile: Profile  // 1:1 relation
   posts: Post[]     // 1:n relation
 }
 
 entity Profile {
   id: ID @primary
-  userId: ID @unique
-  bio: text @nullable
-  avatar: string @nullable
+  userId: ID @unique @index
+  bio: text @nullable(true)
+  avatar: string @nullable(true)
+  status: enum(active,inactive) @default(active)
+  lastLogin: datetime @nullable(true)
 }
 
 entity Post {
   id: ID @primary
-  title: string
-  content: text
-  status: enum(draft,published,archived)
-  authorId: ID
+  title: string @index
+  content: text @nullable(true)
+  status: enum(draft,published,archived) @default(draft)
+  authorId: ID @index
   author: User
-  createdAt: datetime
+  createdAt: datetime @default(now)
+  updatedAt: datetime
 }
 
 Design Principles:
 1. Every entity must have an ID field as primary key
-2. Use appropriate indexes for frequently queried fields
+2. Use appropriate indexes (@index) for frequently queried fields
 3. Consider query patterns when designing relations
-4. Add proper constraints (unique, nullable) based on business rules
+4. Add proper constraints (@unique, @nullable) based on business rules
 5. Use enum types for fields with fixed value sets
-6. Consider data validation and integrity requirements
-
-Your response must be a JSON object with:
-1. A detailed explanation of the model design decisions
-2. The complete schema string following our syntax
-3. A list of key features the schema supports`;
+6. Add default values (@default) where appropriate
+7. Consider data validation and integrity requirements`;
 
   const jsonSchema = {
     type: 'object',
@@ -752,13 +754,58 @@ Your response must be a JSON object with:
         description: 'Detailed explanation of the data model design decisions'
       },
       schema: {
-        type: 'string',
-        description: 'The complete data model schema following the specified syntax'
+        type: 'object',
+        properties: {
+          entities: {
+            type: 'object',
+            additionalProperties: {
+              type: 'object',
+              properties: {
+                fields: {
+                  type: 'object',
+                  additionalProperties: {
+                    type: 'object',
+                    properties: {
+                      type: { type: 'string' },
+                      isArray: { type: 'boolean' },
+                      isUnique: { type: 'boolean' },
+                      isIndex: { type: 'boolean' },
+                      isPrimary: { type: 'boolean' },
+                      isNullable: { type: 'boolean' },
+                      defaultValue: { type: ['string', 'null'] },
+                      enumValues: {
+                        type: ['array', 'null'],
+                        items: { type: 'string' }
+                      }
+                    },
+                    required: ['type']
+                  }
+                }
+              },
+              required: ['fields']
+            }
+          },
+          relations: {
+            type: 'object',
+            additionalProperties: {
+              type: 'object',
+              properties: {
+                fromEntity: { type: 'string' },
+                toEntity: { type: 'string' },
+                fieldName: { type: 'string' },
+                referencedField: { type: 'string' },
+                cardinality: { type: 'string' },
+                isNullable: { type: 'boolean' }
+              },
+              required: ['fromEntity', 'toEntity', 'fieldName', 'cardinality']
+            }
+          }
+        },
+        required: ['entities', 'relations']
       },
       supportedFeatures: {
         type: 'array',
-        items: { type: 'string' },
-        description: 'List of key features this schema supports'
+        items: { type: 'string' }
       }
     },
     required: ['explanation', 'schema', 'supportedFeatures']
@@ -800,8 +847,42 @@ Consider:
 
     const response = JSON.parse(completion.choices[0].message.content);
     
-    // Validate the generated schema using modelParser
-    const parsedSchema = parseDataModelSchema(response.schema);
+    // Convert the JSON schema format to DSL string format
+    const schemaString = Object.entries(response.schema.entities)
+      .map(([entityName, entityData]) => {
+        const fields = Object.entries(entityData.fields)
+          .map(([fieldName, fieldConfig]) => {
+            let fieldLine = `  ${fieldName}: `;
+            
+            // Handle enum type
+            if (fieldConfig.enumValues) {
+              fieldLine += `enum(${fieldConfig.enumValues.join(',')})`;
+            } else {
+              fieldLine += fieldConfig.type + (fieldConfig.isArray ? '[]' : '');
+            }
+
+            // Add modifiers
+            const modifiers = [];
+            if (fieldConfig.isPrimary) modifiers.push('@primary');
+            if (fieldConfig.isUnique) modifiers.push('@unique');
+            if (fieldConfig.isIndex) modifiers.push('@index');
+            if (fieldConfig.isNullable) modifiers.push('@nullable(true)');
+            if (fieldConfig.defaultValue) modifiers.push(`@default(${fieldConfig.defaultValue})`);
+
+            if (modifiers.length > 0) {
+              fieldLine += ' ' + modifiers.join(' ');
+            }
+
+            return fieldLine;
+          })
+          .join('\n');
+
+        return `entity ${entityName} {\n${fields}\n}`;
+      })
+      .join('\n\n');
+
+    // Now validate the converted schema string
+    const parsedSchema = parseDataModelSchema(schemaString);
     if (!parsedSchema.isValid) {
       throw new HttpError(400, {
         message: 'Generated schema is invalid',
@@ -811,7 +892,7 @@ Consider:
 
     return {
       explanation: response.explanation,
-      schema: response.schema,
+      schema: schemaString,
       supportedFeatures: response.supportedFeatures,
       entities: parsedSchema.entities,
       relations: parsedSchema.relations
