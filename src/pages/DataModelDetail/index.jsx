@@ -158,6 +158,7 @@ const DataModelPage = () => {
         <AIAssistant 
           dataModelId={id} 
           onSchemaGenerated={handleSchemaGenerated}
+          modelData={model}
         />
         <CodeEditor
           dataModelId={id}

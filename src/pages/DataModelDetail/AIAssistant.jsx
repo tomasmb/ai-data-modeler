@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements, generateDataModel, saveDataModelSchema } from 'wasp/client/operations';
+import ModelInfoModal from './ModelInfoModal';
 
-const AIAssistant = ({ dataModelId, onSchemaGenerated }) => {
+const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
@@ -102,6 +103,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated }) => {
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   // Add effect to save initializedSteps to localStorage when it changes
   useEffect(() => {
@@ -117,6 +119,20 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated }) => {
       `collectedInfo-${dataModelId}`,
       JSON.stringify(collectedInfo)
     );
+    
+    // Save to database whenever collectedInfo changes
+    const saveRequirements = async () => {
+      try {
+        await saveDataModelRequirements({
+          dataModelId,
+          requirements: collectedInfo
+        });
+      } catch (error) {
+        console.error('Error saving requirements to database:', error);
+      }
+    };
+    
+    saveRequirements();
   }, [collectedInfo, dataModelId]);
 
   // Add persistence for phase and chatMode
@@ -348,12 +364,8 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated }) => {
             setCurrentStep(nextStep);
             await initializeStep(nextStep);
           } else {
-            // Save requirements and generate schema
+            // No need to save requirements again, just transition to the next phase
             try {
-              await saveDataModelRequirements({
-                dataModelId,
-                requirements: collectedInfo
-              });
               await handlePhaseTransition();
             } catch (error) {
               console.error('Error in phase transition:', error);
@@ -408,6 +420,29 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated }) => {
     return content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   };
 
+  // Modify the handleInfoUpdate function to also save to database
+  const handleInfoUpdate = async (updatedInfo) => {
+    setCollectedInfo(updatedInfo);
+    // Note: We don't need to explicitly save to database here since the useEffect will handle it
+  };
+
+  // Replace the existing useEffect for loading from localStorage with this:
+  useEffect(() => {
+    if (modelData?.requirements) {
+      setCollectedInfo(modelData.requirements);
+    } else {
+      // Fallback to localStorage if no requirements in model data
+      const savedInfo = localStorage.getItem(`collectedInfo-${dataModelId}`);
+      if (savedInfo) {
+        try {
+          setCollectedInfo(JSON.parse(savedInfo));
+        } catch (e) {
+          console.error('Error parsing saved info:', e);
+        }
+      }
+    }
+  }, [dataModelId, modelData]);
+
   // Add the generating overlay
   if (isGenerating) {
     return (
@@ -431,13 +466,19 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated }) => {
           {phase === 'structured' && (
             <div className='flex items-center gap-2'>
               <button
+                onClick={() => setShowInfoModal(true)}
+                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors text-sm border border-gray-200 mr-2"
+              >
+                View Requirements
+              </button>
+              <button
                 onClick={handleTestGeneration}
-                className="px-3 py-1 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors"
+                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors text-sm border border-gray-200"
                 disabled={isGenerating}
               >
                 {isGenerating ? 'Generating...' : 'Test Generate'}
               </button>
-              <div className='h-2 w-24 bg-gray-200 rounded-full overflow-hidden'>
+              <div className='h-2 w-24 bg-gray-200 rounded-full overflow-hidden ml-2'>
                 <div 
                   className='h-full bg-blue-500 transition-all duration-300'
                   style={{ width: `${calculateProgress()}%` }}
@@ -448,6 +489,12 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated }) => {
           )}
           {phase === 'free' && (
             <div className='flex gap-2'>
+              <button
+                onClick={() => setShowInfoModal(true)}
+                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors text-sm border border-gray-200 mr-2"
+              >
+                View Requirements
+              </button>
               <button
                 className={`text-sm px-3 py-1 rounded-full transition-colors ${
                   chatMode === 'questions'
@@ -548,6 +595,14 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated }) => {
           </svg>
         </button>
       </div>
+
+      {/* Add the modal component */}
+      <ModelInfoModal 
+        isOpen={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        collectedInfo={collectedInfo}
+        onUpdate={handleInfoUpdate}
+      />
     </div>
   );
 };
