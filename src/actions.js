@@ -26,13 +26,13 @@ export const updateDataModel = async ({ dataModelId, name, version, description 
   if (!context.user) { throw new HttpError(401) };
 
   const dataModel = await context.entities.DataModel.findUnique({
-    where: { id: dataModelId }
+    where: { id: parseInt(dataModelId) }
   });
   if (!dataModel) { throw new HttpError(404, 'DataModel not found') };
   if (dataModel.userId !== context.user.id) { throw new HttpError(403) };
 
   return context.entities.DataModel.update({
-    where: { id: dataModelId },
+    where: { id: parseInt(dataModelId) },
     data: { name, version, description }
   });
 }

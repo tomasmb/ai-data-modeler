@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { useQuery, getDataModel, getDataModelSchema } from 'wasp/client/operations';
+import { useQuery, getDataModel, getDataModelSchema, updateDataModel } from 'wasp/client/operations';
 import AIAssistant from './AIAssistant';
 import CodeEditor from './CodeEditor';
 import ModelVisualization from './ModelVisualization';
@@ -45,12 +45,18 @@ const DataModelPage = () => {
   };
 
   const handleSaveChanges = async () => {
-    // TODO: Implement save logic
     try {
-      // await updateDataModel({ ...formData, id, definition: JSON.parse(jsonEditor) });
+      // First update the basic model info
+      await updateDataModel({
+        dataModelId: id,
+        name: formData.name,
+        description: formData.description,
+      });
+
       setHasChanges(false);
     } catch (error) {
       console.error('Error saving changes:', error);
+      // You might want to show an error notification to the user here
     }
   };
 
