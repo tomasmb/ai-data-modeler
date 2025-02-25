@@ -327,43 +327,22 @@ async function getAIResponse(userMessage, context) {
   let systemPrompt = `You are an expert AI assistant helping to gather comprehensive information for data model creation.
 You have deep knowledge of various system architectures, industry patterns, and technical requirements.
 
-Your mission is to help users think deeper and broader about their system requirements.
-Always analyze the complete context of previously collected information to ask insightful follow-up questions.
+Your mission is to efficiently collect ALL missing information to complete the data model requirements.
 
-Core Principles:
-1. Never accept surface-level answers - dig deeper with specific follow-up questions
-2. Use the context from previous answers to identify gaps and potential oversights
-3. Help users think through implications of their requirements
-4. Challenge assumptions and probe for edge cases
-5. Identify missing dependencies between features
+IMPORTANT INSTRUCTIONS:
+1. Focus on collecting ALL missing information from the required fields
+2. Ask DIRECT, SPECIFIC questions about ALL missing fields
+3. Provide clear context about what information you need and why it's important
+4. Acknowledge information the user has already provided and don't ask for it again
+5. Structure your response to clearly separate different missing fields
 
-Question Strategy:
-- Start broad, then systematically drill down into details
-- When a feature is mentioned, explore its complete ecosystem of related features
-- Use previously collected information to inform follow-up questions
-- Help users think through the full lifecycle of their features
+DO NOT ask open-ended, vague questions like "Let's explore more about these features."
+DO ask specific questions like "What is your expected peak concurrent user count?" or "Which entities will require the most frequent read operations?"
 
-For example:
-If user mentions "user profiles":
-- DON'T just accept it and move on
-- DO ask about: profile data structure, privacy settings, update workflows, 
-  verification needs, integration with other features mentioned earlier
-
-If discussing technical requirements:
-- DON'T accept vague metrics like "high performance"
-- DO ask for specific numbers, patterns, and scenarios based on previously 
-  described features and user base
-
-Remember: You have the complete context of all previously collected information.
-Use this context to:
-1. Identify gaps between different aspects of the system
-2. Spot missing requirements that would be needed to support previously mentioned features
-3. Help users think through how different parts of their system will interact
-4. Challenge inconsistencies between different requirements
-
-Important: Your role is to be a thought partner who helps users think through 
-ALL implications of their requirements. Use your expertise to help them consider 
-aspects they might not have thought about.`;
+For each missing field, provide:
+1. A clear explanation of what the field means
+2. Why this information is important for the data model
+3. Examples of possible values or responses`;
 
   // Base JSON schema structure that all steps will extend
   const baseSchema = {
@@ -598,33 +577,199 @@ aspects they might not have thought about.`;
       break;
   }
 
-  // Add conversation context
-  const conversationContext = {
-    currentStep: context.step,
-    currentProgress: context.currentStepInfo,
-    previousQuestion: context.previousQuestion,
-    userResponse: userMessage
+  // Add a new function to identify missing fields with detailed explanations
+  const getMissingFieldsWithExplanations = (currentInfo, step) => {
+    const missingFields = [];
+    
+    switch(step) {
+      case 'projectDetails':
+        if(!currentInfo.type || currentInfo.type === null) {
+          missingFields.push({
+            field: 'type',
+            explanation: 'The type of application youre building (e.g., SaaS, e-commerce, fintech, IoT, social platform)',
+            importance: 'This helps determine the core entities and relationships in your data model'
+          });
+        }
+        if(!currentInfo.description || currentInfo.description === null) {
+          missingFields.push({
+            field: 'description',
+            explanation: 'A detailed description of your project including main features and business goals',
+            importance: 'This provides context for the overall data model structure and priorities'
+          });
+        }
+        if(!currentInfo.industry || currentInfo.industry === null) {
+          missingFields.push({
+            field: 'industry',
+            explanation: 'The specific industry your application serves (e.g., healthcare, logistics, finance)',
+            importance: 'Different industries have different data modeling patterns and compliance requirements'
+          });
+        }
+        if(!currentInfo.targetMarket || currentInfo.targetMarket === null) {
+          missingFields.push({
+            field: 'targetMarket',
+            explanation: 'Your target audience (e.g., consumers, businesses, enterprise users)',
+            importance: 'This affects user entity design and access patterns'
+          });
+        }
+        if(!currentInfo.securityRequirements || currentInfo.securityRequirements === null) {
+          missingFields.push({
+            field: 'securityRequirements',
+            explanation: 'Security or compliance requirements (e.g., GDPR, HIPAA, SOC 2, encryption needs)',
+            importance: 'This impacts data storage, encryption, and access control in your model'
+          });
+        }
+        if(!currentInfo.suggestedDataModel || currentInfo.suggestedDataModel === null && 
+           currentInfo.type && currentInfo.description && currentInfo.industry) {
+          missingFields.push({
+            field: 'suggestedDataModel',
+            explanation: 'Based on your project details, what database type would be most appropriate (SQL/Relational, NoSQL/Document, Graph, Time-series, etc.)',
+            importance: 'This fundamental choice affects the entire structure of your data model'
+          });
+        }
+        break;
+        
+      case 'functionalRequirements':
+        if(!currentInfo.userStories || !currentInfo.userStories.length) {
+          missingFields.push({
+            field: 'userStories',
+            explanation: 'Key user stories that describe what users can do in your system',
+            importance: 'These translate directly to data entities and relationships'
+          });
+        }
+        if(!currentInfo.userTypes || !currentInfo.userTypes.length) {
+          missingFields.push({
+            field: 'userTypes',
+            explanation: 'Different types of users in your system and their roles',
+            importance: 'This affects user entity design and permission structures'
+          });
+        }
+        if(!currentInfo.keyFeatures || !currentInfo.keyFeatures.length) {
+          missingFields.push({
+            field: 'keyFeatures',
+            explanation: 'The main features your application provides',
+            importance: 'Each feature typically requires specific entities and relationships'
+          });
+        }
+        if(!currentInfo.businessProcesses || !currentInfo.businessProcesses.length) {
+          missingFields.push({
+            field: 'businessProcesses',
+            explanation: 'Key business workflows and processes your system supports',
+            importance: 'These often require specific data structures and state tracking'
+          });
+        }
+        if(!currentInfo.integrations || !currentInfo.integrations.length) {
+          missingFields.push({
+            field: 'integrations',
+            explanation: 'External systems or services your application will integrate with',
+            importance: 'Integrations often require specific data structures for compatibility'
+          });
+        }
+        if(!currentInfo.dataAccess || !currentInfo.dataAccess.accessPatterns || !currentInfo.dataAccess.accessPatterns.length) {
+          missingFields.push({
+            field: 'dataAccess.accessPatterns',
+            explanation: 'How users will access and interact with data in your system',
+            importance: 'Access patterns heavily influence indexing and relationship design'
+          });
+        }
+        if(!currentInfo.reportingNeeds || !currentInfo.reportingNeeds.length) {
+          missingFields.push({
+            field: 'reportingNeeds',
+            explanation: 'Reports or analytics your system needs to generate',
+            importance: 'Reporting requirements often influence denormalization and indexing strategies'
+          });
+        }
+        break;
+        
+      case 'nonFunctionalRequirements':
+        if(!currentInfo.dataOperations?.heavyRead?.entities || !currentInfo.dataOperations.heavyRead.entities.length) {
+          missingFields.push({
+            field: 'dataOperations.heavyRead.entities',
+            explanation: 'Which entities will experience the most read operations',
+            importance: 'High-read entities often need special indexing and caching strategies'
+          });
+        }
+        if(!currentInfo.dataOperations?.heavyWrite?.entities || !currentInfo.dataOperations.heavyWrite.entities.length) {
+          missingFields.push({
+            field: 'dataOperations.heavyWrite.entities',
+            explanation: 'Which entities will experience the most write operations',
+            importance: 'High-write entities may need special considerations for performance and concurrency'
+          });
+        }
+        if(!currentInfo.traffic?.peakConcurrentUsers || currentInfo.traffic.peakConcurrentUsers === null) {
+          missingFields.push({
+            field: 'traffic.peakConcurrentUsers',
+            explanation: 'Maximum number of users expected to use the system simultaneously',
+            importance: 'This affects database connection pooling and scaling strategies'
+          });
+        }
+        if(!currentInfo.dataVolume?.initialSize || currentInfo.dataVolume.initialSize === null) {
+          missingFields.push({
+            field: 'dataVolume.initialSize',
+            explanation: 'Expected initial size of your database (e.g., number of records, GB)',
+            importance: 'This helps determine initial provisioning and indexing strategies'
+          });
+        }
+        if(!currentInfo.dataVolume?.growthRate || currentInfo.dataVolume.growthRate === null) {
+          missingFields.push({
+            field: 'dataVolume.growthRate',
+            explanation: 'Expected growth rate of your data over time',
+            importance: 'This affects partitioning strategies and long-term storage planning'
+          });
+        }
+        if(!currentInfo.performance?.expectedLatency || currentInfo.performance.expectedLatency === null) {
+          missingFields.push({
+            field: 'performance.expectedLatency',
+            explanation: 'Maximum acceptable response time for critical operations',
+            importance: 'This influences indexing, caching, and query optimization strategies'
+          });
+        }
+        if(!currentInfo.availability?.upTimeRequirements || currentInfo.availability.upTimeRequirements === null) {
+          missingFields.push({
+            field: 'availability.upTimeRequirements',
+            explanation: 'Required system uptime (e.g., 99.9%, 99.99%)',
+            importance: 'This affects replication, failover, and backup strategies'
+          });
+        }
+        break;
+    }
+    
+    return missingFields;
   };
 
+  // Get missing fields with explanations
+  const missingFields = getMissingFieldsWithExplanations(context.currentStepInfo || {}, context.step);
+  
+  // Add conversation context with focus on ALL missing fields
   messages.push({ 
     role: 'system', 
     content: `${systemPrompt}
 
 Current Context:
-Previous question: ${context.previousQuestion || 'None'}
 Current step: ${context.step}
+Previous question: ${context.previousQuestion || 'None'}
 
-Complete collected information so far:
+MISSING INFORMATION (COLLECT ALL):
+${missingFields.length > 0 ? 
+  missingFields.map(field => 
+    `- ${field.field}: ${field.explanation}\n  WHY IT'S IMPORTANT: ${field.importance}`
+  ).join('\n\n') : 
+  'All required fields have been collected for this step.'}
+
+Information already collected for this step:
+${JSON.stringify(context.currentStepInfo, null, 2)}
+
+Complete collected information from all steps:
 ${JSON.stringify(context.allCollectedInfo, null, 2)}
 
 User's latest response: ${userMessage}
 
-Use this context to:
-1. Cross-reference with previous answers
-2. Identify gaps or inconsistencies
-3. Ask about missing dependencies
-4. Challenge vague or incomplete responses
-5. Help user think through implications`
+YOUR TASK:
+1. Analyze the user's response to extract any information for the missing fields
+2. Ask DIRECT questions about ALL remaining missing fields
+3. For each question, explain what the information means and why it's important
+4. Provide examples of possible answers to guide the user
+5. DO NOT ask open-ended exploratory questions - focus on collecting specific missing data
+6. Structure your response with clear headings for each missing field`
   });
 
   messages.push({ role: 'user', content: userMessage });
@@ -643,6 +788,8 @@ Use this context to:
   });
 
   const response = JSON.parse(completion.choices[0].message.content);
+  
+  // Check if all required fields are completed
   response.completed = validateStepCompletion(response.updatedInfo, context.step) === true;
   
   // Add completion message if the step is now completed
@@ -654,6 +801,24 @@ Use this context to:
     }
     
 ${response.message}`;
+  } else {
+    // If not completed, make sure the follow-up question focuses on ALL missing fields
+    const remainingMissingFields = getMissingFieldsWithExplanations(response.updatedInfo, context.step);
+    
+    if (remainingMissingFields.length > 0) {
+      // Create a comprehensive follow-up question covering ALL missing fields
+      let followUpQuestion = "To complete your data model, I need information about ALL of the following:\n\n";
+      
+      remainingMissingFields.forEach((field, index) => {
+        followUpQuestion += `### ${index + 1}. ${field.field.split('.').pop()}\n`;
+        followUpQuestion += `**What it is**: ${field.explanation}\n`;
+        followUpQuestion += `**Why it matters**: ${field.importance}\n\n`;
+      });
+      
+      followUpQuestion += "Please provide information for as many of these items as possible. Even partial information helps build your data model.";
+      
+      response.followUpQuestion = followUpQuestion;
+    }
   }
   
   return response;

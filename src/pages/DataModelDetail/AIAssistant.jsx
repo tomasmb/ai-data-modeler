@@ -516,9 +516,64 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; // Max height of 200px
   };
 
-  // Add this function to convert markdown-style bold to HTML
+  // Replace the simple formatMessage function with a more comprehensive markdown parser
   const formatMessage = (content) => {
-    return content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Process markdown headings (### Heading)
+    content = content.replace(/^(#{1,6})\s+(.+)$/gm, (match, hashes, text) => {
+      const level = hashes.length;
+      return `<h${level} class="font-bold text-lg my-2">${text}</h${level}>`;
+    });
+
+    // Process bold text (**bold**)
+    content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    
+    // Process italic text (*italic*)
+    content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    // Process inline code (`code`)
+    content = content.replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded text-sm font-mono">$1</code>');
+    
+    // First identify list blocks to avoid processing them multiple times
+    let listBlocks = [];
+    let nonListContent = content.replace(/(?:^|\n)((?:(?:- |\d+\. ).+\n?)+)/g, (match, listBlock, index) => {
+      listBlocks.push({ index, content: listBlock });
+      return `\n{{LIST_BLOCK_${listBlocks.length - 1}}}\n`;
+    });
+    
+    // Process each list block separately
+    listBlocks.forEach((block, blockIndex) => {
+      let listContent = block.content;
+      
+      // Check if this is an unordered list (starts with -)
+      if (listContent.trim().startsWith('- ')) {
+        // Process unordered lists
+        listContent = listContent.replace(/^- (.+)$/gm, '<li class="ml-4">$1</li>');
+        listContent = `<ul class="list-disc my-2">${listContent}</ul>`;
+      } else {
+        // Process ordered lists
+        listContent = listContent.replace(/^\d+\.\s+(.+)$/gm, '<li class="ml-4">$1</li>');
+        listContent = `<ol class="list-decimal my-2">${listContent}</ol>`;
+      }
+      
+      // Replace the placeholder with the processed list
+      nonListContent = nonListContent.replace(`{{LIST_BLOCK_${blockIndex}}}`, listContent);
+    });
+    
+    content = nonListContent;
+    
+    // Process code blocks
+    content = content.replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-100 p-2 rounded my-2 overflow-x-auto font-mono text-sm">$1</pre>');
+    
+    // Process horizontal rules
+    content = content.replace(/^---$/gm, '<hr class="my-4 border-t border-gray-300">');
+    
+    // Process links
+    content = content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" class="text-blue-500 underline" target="_blank" rel="noopener noreferrer">$1</a>');
+    
+    // Convert newlines to <br> tags
+    content = content.replace(/\n/g, '<br>');
+    
+    return content;
   };
 
   // Modify the handleInfoUpdate function to also save to database
@@ -636,7 +691,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
                 }`}
               >
                 <p 
-                  className='whitespace-pre-wrap'
+                  className='whitespace-pre-wrap markdown-content'
                   dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
                 />
                 <span className='text-xs opacity-70 mt-1 block'>
