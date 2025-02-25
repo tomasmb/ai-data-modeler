@@ -86,3 +86,8 @@ action generateDataModel {
   fn: import { generateDataModel } from "@src/actions.js",
   entities: [DataModel]
 }
+
+action askDataModelQuestion {
+  fn: import { askDataModelQuestion } from "@src/actions.js",
+  entities: [DataModel, ChatMessage]
+}

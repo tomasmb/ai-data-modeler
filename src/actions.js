@@ -903,3 +903,364 @@ IMPORTANT: For entity relationships, when an entity field references another ent
     throw new HttpError(500, 'Failed to generate data model schema');
   }
 };
+
+export const askDataModelQuestion = async ({ dataModelId, content, chatMode }, context) => {
+  if (!context.user) { throw new HttpError(401) }
+
+  const dataModel = await context.entities.DataModel.findUnique({
+    where: { id: parseInt(dataModelId) }
+  });
+
+  if (!dataModel) { throw new HttpError(404, 'Data model not found') }
+  if (dataModel.userId !== context.user.id) { throw new HttpError(403) }
+
+  // Get the last 10 chat messages for context
+  const recentMessages = await context.entities.ChatMessage.findMany({
+    where: { dataModelId: parseInt(dataModelId) },
+    orderBy: { createdAt: 'desc' },
+    take: 10
+  });
+
+  // Save the user message
+  const userMessage = await context.entities.ChatMessage.create({
+    data: {
+      content,
+      sender: 'user',
+      dataModelId: parseInt(dataModelId)
+    }
+  });
+
+  try {
+    // Get the schema in DSL format
+    const { schema } = await context.entities.getDataModelSchema({ dataModelId });
+
+    // Get AI response based on chat mode
+    const aiResponse = await getDataModelAnswer(content, {
+      schema,
+      dataModel,
+      recentMessages: recentMessages.reverse(), // Reverse to get chronological order
+      chatMode // 'questions' or 'modifications'
+    });
+
+    // Save AI's response
+    const aiMessage = await context.entities.ChatMessage.create({
+      data: {
+        content: aiResponse,
+        sender: 'ai',
+        dataModelId: parseInt(dataModelId)
+      }
+    });
+
+    return {
+      userMessage,
+      aiMessage
+    };
+  } catch (error) {
+    console.error('OpenAI API error:', error);
+    throw new HttpError(500, 'Failed to get AI response');
+  }
+}
+
+async function getDataModelAnswer(userMessage, context) {
+  const messages = [];
+  
+  // Create different system prompts based on chat mode
+  let systemPrompt = '';
+  
+  if (context.chatMode === 'questions') {
+    systemPrompt = `You are an expert data modeling assistant helping a user understand their data model.
+Your goal is to answer questions about the data model, explain design decisions, and provide insights.
+
+The user's data model has the following structure:
+${context.schema || 'No schema available yet'}
+
+Recent conversation context:
+${context.recentMessages.map(msg => `${msg.sender}: ${msg.content}`).join('\n')}
+
+When answering:
+1. Be specific and reference actual entities and fields in the data model
+2. Explain the reasoning behind design decisions when relevant
+3. If asked about something not in the model, suggest how it could be implemented
+4. Use examples to illustrate your explanations
+5. If the user asks about performance, suggest best practices`;
+  } else if (context.chatMode === 'modifications') {
+    systemPrompt = `You are an expert data modeling assistant helping a user modify their data model.
+Your goal is to suggest specific changes to the data model based on the user's requirements.
+
+The user's current data model has the following structure:
+${context.schema || 'No schema available yet'}
+
+Recent conversation context:
+${context.recentMessages.map(msg => `${msg.sender}: ${msg.content}`).join('\n')}
+
+When suggesting modifications:
+1. Provide specific code changes that could be made to the model
+2. Explain the reasoning behind your suggested changes
+3. Consider the impact on existing data and relationships
+4. Suggest alternatives when appropriate
+5. If the change would impact performance, mention potential considerations`;
+  }
+
+  messages.push({ role: 'system', content: systemPrompt });
+  messages.push({ role: 'user', content: userMessage });
+
+  const completion = await openai.chat.completions.create({
+    model: 'gpt-4o',
+    messages,
+    temperature: 0.7
+  });
+
+  return completion.choices[0].message.content;
+}
+
+export const modifyDataModelSchema = async ({ dataModelId, content }, context) => {
+  if (!context.user) { throw new HttpError(401) }
+
+  const dataModel = await context.entities.DataModel.findUnique({
+    where: { id: parseInt(dataModelId) }
+  });
+
+  if (!dataModel) { throw new HttpError(404, 'Data model not found') }
+  if (dataModel.userId !== context.user.id) { throw new HttpError(403) }
+
+  try {
+    // Get the current schema in DSL format
+    const { schema: currentSchema } = await context.entities.getDataModelSchema({ dataModelId });
+    
+    const messages = [];
+    
+    const systemPrompt = `You are an expert data modeler tasked with modifying an existing data model schema based on specific user instructions.
+Your job is to carefully apply the requested changes to the current schema while maintaining its integrity.
+
+IMPORTANT INSTRUCTIONS:
+1. Start with the EXACT current schema provided
+2. ONLY make the specific changes requested by the user
+3. Do NOT add or remove entities or fields unless explicitly requested
+4. Preserve all existing relationships unless specifically asked to modify them
+5. Maintain the same naming conventions used in the current schema
+6. Ensure all changes are consistent with the rest of the model
+
+Your output must follow this JSON schema structure exactly:
+- entities: An object where keys are entity names (PascalCase) and values contain their field definitions
+- Each entity has a "fields" object where keys are field names (camelCase) and values define field properties
+- Field properties include type, constraints, and relationship information
+
+For field types:
+- Use standard types: string, number, boolean, datetime, ID, int, float, decimal, date, time, json, text, email, url, uuid, bigint, binary
+- For enum fields, provide the possible values in the "enumValues" array
+- For relationships to other entities, use the entity name as the type
+- For relationships that reference a specific field, use "EntityName.fieldName" format
+- For array/collection relationships, set "isArray" to true`;
+
+    const jsonSchema = {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        explanation: {
+          type: 'string',
+          description: 'Detailed explanation of the specific changes made to the schema'
+        },
+        schema: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            entities: {
+              type: 'object',
+              additionalProperties: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  fields: {
+                    type: 'object',
+                    additionalProperties: {
+                      type: 'object',
+                      additionalProperties: false,
+                      properties: {
+                        type: { type: 'string' },
+                        isArray: { type: 'boolean' },
+                        isUnique: { type: 'boolean' },
+                        isIndex: { type: 'boolean' },
+                        isPrimary: { type: 'boolean' },
+                        isNullable: { type: 'boolean' },
+                        defaultValue: { type: ['string', 'null'] },
+                        enumValues: {
+                          type: ['array', 'null'],
+                          items: { type: 'string' }
+                        }
+                      },
+                      required: [
+                        'type',
+                        'isArray',
+                        'isUnique',
+                        'isIndex',
+                        'isPrimary',
+                        'isNullable',
+                        'defaultValue',
+                        'enumValues'
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            relations: {
+              type: 'object',
+              additionalProperties: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  fromEntity: { type: 'string' },
+                  toEntity: { type: 'string' },
+                  fieldName: { type: 'string' },
+                  referencedField: { type: 'string' },
+                  cardinality: { type: 'string' },
+                  isNullable: { type: 'boolean' }
+                },
+                required: [
+                  'fromEntity',
+                  'toEntity',
+                  'fieldName',
+                  'referencedField',
+                  'cardinality',
+                  'isNullable'
+                ]
+              }
+            }
+          },
+        },
+        supportedFeatures: {
+          type: 'array',
+          items: { type: 'string' }
+        },
+        changesApplied: {
+          type: 'array',
+          description: 'List of specific changes that were applied to the schema',
+          items: { type: 'string' }
+        }
+      },
+      required: ['explanation', 'schema', 'supportedFeatures', 'changesApplied']
+    };
+
+    messages.push({
+      role: 'system',
+      content: `${systemPrompt}
+
+CURRENT SCHEMA (DO NOT CHANGE UNLESS SPECIFICALLY REQUESTED):
+\`\`\`
+${currentSchema}
+\`\`\`
+
+USER'S MODIFICATION REQUEST:
+${content}
+
+Your task is to apply ONLY the specific changes requested by the user to the current schema.
+In your explanation, clearly list each change you made and why.
+If a requested change would break the model's integrity, explain why and suggest alternatives.
+
+IMPORTANT: For entity relationships, when an entity field references another entity:
+- Set the "type" to the entity name (e.g., "User") for basic references
+- For specific field references, use dot notation: "EntityName.fieldName" (e.g., "User.id")
+- Set "isArray" to true for one-to-many or many-to-many relationships`
+    });
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages,
+      temperature: 0.5, // Lower temperature for more precise modifications
+      response_format: { 
+        type: "json_schema",
+        json_schema: {
+          name: 'data_model_assistant',
+          strict: true,
+          schema: jsonSchema
+        },
+      }
+    });
+
+    const response = JSON.parse(completion.choices[0].message.content);
+    
+    // Convert the JSON schema format to DSL string format - same as in generateDataModel
+    const schemaString = Object.entries(response.schema.entities)
+      .map(([entityName, entityData]) => {
+        const fields = Object.entries(entityData.fields)
+          .map(([fieldName, fieldConfig]) => {
+            let fieldLine = `  ${fieldName}: `;
+            
+            // Handle enum type
+            if (fieldConfig.enumValues && fieldConfig.enumValues.length > 0) {
+              fieldLine += `enum(${fieldConfig.enumValues.join(',')})`;
+            } else {
+              // Use the type directly - it should already include any entity.field references
+              fieldLine += fieldConfig.type + (fieldConfig.isArray ? '[]' : '');
+            }
+
+            // Add modifiers
+            const modifiers = [];
+            if (fieldConfig.isPrimary) modifiers.push('@primary');
+            if (fieldConfig.isUnique) modifiers.push('@unique');
+            if (fieldConfig.isIndex) modifiers.push('@index');
+            if (fieldConfig.isNullable) modifiers.push('@nullable(true)');
+            if (fieldConfig.defaultValue) modifiers.push(`@default(${fieldConfig.defaultValue})`);
+
+            if (modifiers.length > 0) {
+              fieldLine += ' ' + modifiers.join(' ');
+            }
+
+            return fieldLine;
+          })
+          .join('\n');
+
+        return `entity ${entityName} {\n${fields}\n}`;
+      })
+      .join('\n\n');
+
+    // Now validate the converted schema string
+    const parsedSchema = parseDataModelSchema(schemaString);
+    if (!parsedSchema.isValid) {
+      throw new HttpError(400, {
+        message: 'Modified schema is invalid',
+        details: parsedSchema.errors
+      });
+    }
+
+    // Save the modified schema
+    await saveDataModelSchema({
+      dataModelId,
+      schema: schemaString
+    });
+
+    // Create a detailed explanation with the list of changes
+    const detailedExplanation = `
+## Schema Modifications Applied
+
+${response.explanation}
+
+### Specific Changes:
+${response.changesApplied.map(change => `- ${change}`).join('\n')}
+`;
+
+    // Save AI's explanation as a chat message
+    const aiMessage = await context.entities.ChatMessage.create({
+      data: {
+        content: detailedExplanation,
+        sender: 'ai',
+        dataModelId: parseInt(dataModelId)
+      }
+    });
+
+    return {
+      explanation: detailedExplanation,
+      schema: schemaString,
+      supportedFeatures: response.supportedFeatures,
+      entities: parsedSchema.entities,
+      relations: parsedSchema.relations,
+      changesApplied: response.changesApplied
+    };
+  } catch (error) {
+    console.error('Error modifying schema:', error);
+    if (error instanceof HttpError) {
+      throw error;
+    }
+    throw new HttpError(500, 'Failed to modify data model schema');
+  }
+}

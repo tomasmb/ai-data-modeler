@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements, generateDataModel, saveDataModelSchema } from 'wasp/client/operations';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements, generateDataModel, saveDataModelSchema, askDataModelQuestion } from 'wasp/client/operations';
 import ModelInfoModal from './ModelInfoModal';
 
 const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
@@ -10,6 +10,8 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
   const [phase, setPhase] = useState('structured'); // 'structured' or 'free'
   const [currentStep, setCurrentStep] = useState('projectDetails'); // 'projectDetails', 'functionalRequirements', 'nonFunctionalRequirements'
   const [chatMode, setChatMode] = useState('questions'); // 'questions' or 'modifications'
+  const [generationExplanation, setGenerationExplanation] = useState('');
+  const [generationError, setGenerationError] = useState('');
   const [collectedInfo, setCollectedInfo] = useState(() => {
     const saved = localStorage.getItem(`collectedInfo-${dataModelId}`);
     return saved ? JSON.parse(saved) : {
@@ -95,8 +97,21 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     };
   });
   
+  // Add local chat history state that will be updated immediately for UI purposes
+  const [localChatHistory, setChatHistory] = useState([]);
   
-  const { data: chatHistory = [] } = useQuery(getDataModelChatHistory, { dataModelId });
+  // Get the server chat history
+  const { data: serverChatHistory = [] } = useQuery(getDataModelChatHistory, { dataModelId });
+  
+  // Combine server and local chat history
+  const chatHistory = useMemo(() => {
+    // If we have server data, use it as the base, otherwise use local state
+    if (serverChatHistory.length > 0) {
+      return serverChatHistory;
+    }
+    return localChatHistory;
+  }, [serverChatHistory, localChatHistory]);
+
   const [previousQuestion, setPreviousQuestion] = useState(null);
   const [initializedSteps, setInitializedSteps] = useState(() => {
     const saved = localStorage.getItem(`initializedSteps-${dataModelId}`);
@@ -225,7 +240,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     }
   }, [chatHistory]);
 
-  // Add the generation step before moving to free phase
+  // Modify the handlePhaseTransition function
   const handlePhaseTransition = async () => {
     setIsGenerating(true);
     try {
@@ -243,8 +258,13 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
       // Update the CodeEditor via parent component
       onSchemaGenerated(result.schema);
 
-      // Show the explanation in a modal or toast
-      setGenerationExplanation(result.explanation);
+      // Add the explanation as a system message in the chat
+      const explanationMessage = {
+        sender: 'ai',
+        content: `Data Model Generated Successfully\n\n${result.explanation}`,
+        timestamp: new Date().toISOString()
+      };
+      setChatHistory(prev => [...prev, explanationMessage]);
       
       // Move to free phase
       setPhase('free');
@@ -254,13 +274,20 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
       window.location.reload();
     } catch (error) {
       console.error('Error generating schema:', error);
-      setGenerationError(error.message);
+      
+      // Add error message to chat
+      const errorMessage = {
+        sender: 'ai',
+        content: `❌ Error generating schema: ${error.message || 'An unknown error occurred'}`,
+        timestamp: new Date().toISOString()
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Add this new function
+  // Similarly update the handleTestGeneration function
   const handleTestGeneration = async () => {
     setIsGenerating(true);
     try {
@@ -278,18 +305,30 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
       // Update the CodeEditor via parent component
       onSchemaGenerated(result.schema);
       
-      // Show success message (you might want to add a toast notification here)
-      console.log('Schema generated successfully!');
+      // Add the explanation as a system message in the chat
+      const explanationMessage = {
+        sender: 'ai',
+        content: `Data Model Generated Successfully\n\n${result.explanation}`,
+        timestamp: new Date().toISOString()
+      };
+      setChatHistory(prev => [...prev, explanationMessage]);
       
     } catch (error) {
       console.error('Error generating schema:', error);
-      // Show error message (you might want to add a toast notification here)
+      
+      // Add error message to chat
+      const errorMessage = {
+        sender: 'ai',
+        content: `❌ Error generating schema: ${error.message || 'An unknown error occurred'}`,
+        timestamp: new Date().toISOString()
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // Modify the existing logic in sendChatMessage handler
+  // Modify the handleSend function to show loading state during modifications
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
 
@@ -308,7 +347,12 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
       content: userMessage,
       timestamp: new Date().toISOString()
     };
-    chatHistory.push(userMessageObj);
+    
+    // Create a new array with the user message added
+    const updatedChatHistory = [...chatHistory, userMessageObj];
+    
+    // Update local chat history state
+    setChatHistory(updatedChatHistory);
     
     // Add immediate scroll after adding message
     setTimeout(() => {
@@ -319,65 +363,122 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     }, 0);
 
     try {
-      const response = await sendChatMessage({ 
-        dataModelId, 
-        content: userMessage,
-        context: {
-          phase,
-          step: currentStep,
-          allCollectedInfo: collectedInfo,
-          currentStepInfo: collectedInfo[currentStep],
-          previousQuestion,
-          isNewStep: false
+      // Use different actions based on the phase
+      if (phase === 'structured') {
+        const response = await sendChatMessage({ 
+          dataModelId, 
+          content: userMessage,
+          context: {
+            phase,
+            step: currentStep,
+            allCollectedInfo: collectedInfo,
+            currentStepInfo: collectedInfo[currentStep],
+            previousQuestion,
+            isNewStep: false
+          }
+        });
+        
+        // Update collected info with AI's response
+        if (response.updatedInfo) {
+          setCollectedInfo(prev => ({
+            ...prev,
+            [currentStep]: {
+              ...response.updatedInfo,
+              completed: response.completed
+            }
+          }));
+
+          // Store the follow-up question for next context
+          setPreviousQuestion(response.followUpQuestion);
+
+          // Handle step completion and phase transition
+          if (response.completed) {
+            const nextStep = (() => {
+              switch (currentStep) {
+                case 'projectDetails':
+                  return 'functionalRequirements';
+                case 'functionalRequirements':
+                  return 'nonFunctionalRequirements';
+                case 'nonFunctionalRequirements':
+                  return null;
+                default:
+                  return null;
+              }
+            })();
+
+            if (nextStep) {
+              setCurrentStep(nextStep);
+              await initializeStep(nextStep);
+            } else {
+              // No need to save requirements again, just transition to the next phase
+              try {
+                await handlePhaseTransition();
+              } catch (error) {
+                console.error('Error in phase transition:', error);
+              }
+            }
+            setPreviousQuestion(null);
+          }
         }
-      });
-      
-      // Update collected info with AI's response
-      if (response.updatedInfo) {
-        setCollectedInfo(prev => ({
-          ...prev,
-          [currentStep]: {
-            ...response.updatedInfo,
-            completed: response.completed
+      } else {
+        // Free phase - use the askDataModelQuestion action
+        if (chatMode === 'modifications') {
+          // For modifications, show the generating overlay
+          setIsGenerating(true);
+          
+          // For modifications, we need to handle the schema update
+          const response = await askDataModelQuestion({
+            dataModelId,
+            content: userMessage,
+            chatMode
+          });
+          
+          // The response should include the schema if modification was successful
+          if (response.schema) {
+            // Update the schema in the editor
+            onSchemaGenerated(response.schema);
+            
+            // Add a system message to indicate the schema was updated
+            const systemMessage = {
+              sender: 'ai',
+              content: '✅ Schema has been updated successfully!',
+              timestamp: new Date().toISOString()
+            };
+            
+            // Update local chat history with the system message
+            setChatHistory(prev => [...prev, systemMessage]);
           }
-        }));
-
-        // Store the follow-up question for next context
-        setPreviousQuestion(response.followUpQuestion);
-
-        // Handle step completion and phase transition
-        if (response.completed) {
-          const nextStep = (() => {
-            switch (currentStep) {
-              case 'projectDetails':
-                return 'functionalRequirements';
-              case 'functionalRequirements':
-                return 'nonFunctionalRequirements';
-              case 'nonFunctionalRequirements':
-                return null;
-              default:
-                return null;
-            }
-          })();
-
-          if (nextStep) {
-            setCurrentStep(nextStep);
-            await initializeStep(nextStep);
-          } else {
-            // No need to save requirements again, just transition to the next phase
-            try {
-              await handlePhaseTransition();
-            } catch (error) {
-              console.error('Error in phase transition:', error);
-            }
-          }
-          setPreviousQuestion(null);
+          
+          // Hide the generating overlay
+          setIsGenerating(false);
+        } else {
+          // For questions, just send the message and get a response
+          await askDataModelQuestion({
+            dataModelId,
+            content: userMessage,
+            chatMode
+          });
         }
       }
       
       inputRef.current?.focus();
     } catch (error) {
       console.error('Error sending message:', error);
+      
+      // Add error message to chat
+      const errorMessage = {
+        sender: 'ai',
+        content: `❌ Error: ${error.message || 'Failed to process your request'}`,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Update local chat history with the error message
+      setChatHistory(prev => [...prev, errorMessage]);
+      
+      // Make sure to hide the generating overlay if there was an error
+      if (chatMode === 'modifications') {
+        setIsGenerating(false);
+      }
     } finally {
       setIsLoading(false);
     }
