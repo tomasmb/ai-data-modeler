@@ -13,25 +13,27 @@ const AIAssistant = ({ dataModelId }) => {
     const saved = localStorage.getItem(`collectedInfo-${dataModelId}`);
     return saved ? JSON.parse(saved) : {
       projectDetails: {
-        type: null, // e.g., "saas", "ecommerce", "social platform"
+        type: null, 
         description: null,
         industry: null,
-        targetMarket: null, // e.g., "B2B", "B2C", "Enterprise"
-        securityRequirements: null, // e.g., "HIPAA", "GDPR", "SOC2"
+        targetMarket: null,
+        securityRequirements: null, 
+        suggestedDataModel: null, // AI-driven recommendation (SQL, NoSQL, GraphDB)
         completed: false
       },
       functionalRequirements: {
-        userStories: [], // high-level business capabilities
-        userTypes: [], // types of users and their roles
-        keyFeatures: [], // main features and capabilities
-        businessProcesses: [], // key workflows in the system
-        integrations: [], // external systems to integrate with
+        userStories: [],
+        userTypes: [],
+        keyFeatures: [],
+        businessProcesses: [],
+        integrations: [],
         dataAccess: {
-          accessPatterns: [], // how data will be accessed/queried
-          searchRequirements: [], // what needs to be searchable
-          filteringNeeds: [], // common filtering scenarios
+          accessPatterns: [],
+          searchRequirements: [],
+          filteringNeeds: [],
+          queryComplexity: null, // Added: "simple lookups", "heavy joins", "graph traversal"
         },
-        reportingNeeds: [], // business intelligence requirements
+        reportingNeeds: [],
         completed: false
       },
       nonFunctionalRequirements: {
@@ -39,20 +41,22 @@ const AIAssistant = ({ dataModelId }) => {
           heavyRead: {
             entities: [],
             frequency: null,
-            patterns: [], // e.g., "batch reads", "real-time queries"
+            patterns: [],
           },
           heavyWrite: {
             entities: [],
             frequency: null,
-            patterns: [], // e.g., "bulk uploads", "streaming updates"
+            patterns: [],
           },
           readWriteRatio: null,
-          consistencyRequirements: [], // which entities need strong consistency
+          consistencyRequirements: [],
+          schemaFlexibility: null, // Added: "low", "medium", "high"
         },
         traffic: {
           peakConcurrentUsers: null,
           averageDailyUsers: null,
           growthProjection: null,
+          expectedApiRequestsPerSecond: null, // Added: better API-based scaling estimates
           geographicDistribution: null,
           peakHours: null,
           seasonality: null,
@@ -63,12 +67,13 @@ const AIAssistant = ({ dataModelId }) => {
           recordSizeLimits: null,
           dataRetentionRequirements: null,
           archivalNeeds: null,
+          estimatedHistoricalData: null, // Added: for ML-based forecasting
         },
         performance: {
           expectedLatency: null,
           criticalOperations: [],
           slaRequirements: null,
-          cacheableEntities: [], // entities that can be cached
+          cacheableEntities: [],
         },
         availability: {
           upTimeRequirements: null,
@@ -80,6 +85,8 @@ const AIAssistant = ({ dataModelId }) => {
           dataResidency: null,
           auditRequirements: null,
           dataPrivacy: null,
+          encryptionAtRest: null, // Added: Ensuring database security compliance
+          encryptionInTransit: null, // Added: Security for API calls
         },
         completed: false
       }
@@ -186,7 +193,7 @@ const AIAssistant = ({ dataModelId }) => {
     if (!message.trim() || isLoading) return;
 
     const userMessage = message.trim();
-    setMessage(''); // Clear input immediately
+    setMessage('');
     setIsLoading(true);
     
     // Add immediate scroll after setting loading state
@@ -200,12 +207,13 @@ const AIAssistant = ({ dataModelId }) => {
     try {
       const response = await sendChatMessage({ 
         dataModelId, 
-        content: userMessage, // Use saved message instead of message.trim()
+        content: userMessage,
         context: {
           phase,
           step: currentStep,
+          allCollectedInfo: collectedInfo,
           currentStepInfo: collectedInfo[currentStep],
-          previousQuestion: previousQuestion,
+          previousQuestion,
           isNewStep: false
         }
       });
@@ -292,6 +300,13 @@ const AIAssistant = ({ dataModelId }) => {
     }
   };
 
+  // Add this new function for auto-resizing
+  const autoResize = (e) => {
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; // Max height of 200px
+  };
+
   return (
     <div className='w-full md:w-1/2 bg-white rounded-lg shadow-lg p-4 flex flex-col'>
       <div className='flex items-center justify-between mb-4'>
@@ -372,27 +387,39 @@ const AIAssistant = ({ dataModelId }) => {
         </div>
       </div>
 
-      <div className='flex gap-2 items-end mt-4'>
+      <div className='flex mt-4 relative items-end border rounded-xl bg-gray-50 shadow-sm'>
         <textarea
           ref={inputRef}
-          className='flex-1 rounded-lg border-2 border-gray-300 p-2 focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50 resize-none'
+          className='flex-1 max-h-[200px] overflow-y-auto bg-transparent py-4 pl-4 pr-12 focus:outline-none focus:ring-0 focus:border-transparent resize-none'
           placeholder={getStepDescription()}
           rows={1}
           value={message}
-          onChange={(e) => setMessage(e.target.value)}
+          onChange={(e) => {
+            setMessage(e.target.value);
+            autoResize(e);
+          }}
           onKeyPress={handleKeyPress}
-          style={{ minHeight: '44px', maxHeight: '120px' }}
+          style={{ minHeight: '56px' }}
         />
         <button
-          className={`px-4 py-2 rounded-lg font-medium ${
+          className={`absolute right-2 bottom-3 p-1 rounded-lg ${
             isLoading || !message.trim()
-              ? 'bg-gray-300 cursor-not-allowed'
-              : 'bg-blue-500 hover:bg-blue-600 active:bg-blue-700'
-          } text-white transition-colors`}
+              ? 'text-gray-400 cursor-not-allowed'
+              : 'text-blue-500 hover:bg-blue-50 active:bg-blue-100'
+          } transition-colors`}
           onClick={handleSend}
           disabled={isLoading || !message.trim()}
         >
-          Send
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="w-6 h-6 rotate-90"
+          >
+            <path
+              d="M5.636 5.636a1 1 0 0 1 1.414 0L12 10.586l4.95-4.95a1 1 0 1 1 1.414 1.414L13.414 12l4.95 4.95a1 1 0 0 1-1.414 1.414L12 13.414l-4.95 4.95a1 1 0 0 1-1.414-1.414L10.586 12 5.636 7.05a1 1 0 0 1 0-1.414z"
+            />
+          </svg>
         </button>
       </div>
     </div>

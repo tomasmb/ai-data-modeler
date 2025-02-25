@@ -186,7 +186,7 @@ Answer these questions so we can get started.`;
     case 'functionalRequirements':
       return `I'll help you define your functional requirements. We'll need to cover:
 1. Different types of users (e.g., admin, regular users, moderators)
-2. Key features and user stories
+2. Key features
 3. Main business processes
 4. Required integrations with other systems
 5. Data access patterns and search requirements
@@ -254,7 +254,9 @@ export const sendChatMessage = async ({ dataModelId, content, context }, ctx) =>
       step: context.step,
       currentStepInfo: context.currentStepInfo,
       previousMessage: userMessage.content, // Add previous message for context
-      phase: context.phase
+      phase: context.phase,
+      allCollectedInfo: context.allCollectedInfo,
+      previousQuestion: context.previousQuestion
     });
 
     // Save AI's response
@@ -283,18 +285,47 @@ export const sendChatMessage = async ({ dataModelId, content, context }, ctx) =>
 async function getAIResponse(userMessage, context) {
   const messages = [];
   
-  // Base system prompt with clear instructions
-  let systemPrompt = `You are an AI assistant helping to gather information for data model creation.
-    Your role is to:
-    1. Analyze the current information state
-    2. Ask ONE focused question about missing or incomplete information
-    3. Update the information based on user's response
-    4. Only mark as completed when ALL required fields have valid values
-    5. Keep questions focused and specific - ask about one specific thing that you need to know at a time
-    
-    Important: Never mark a step as completed unless all required information is properly filled.
-    `;
-  
+  let systemPrompt = `You are an expert AI assistant helping to gather comprehensive information for data model creation.
+You have deep knowledge of various system architectures, industry patterns, and technical requirements.
+
+Your mission is to help users think deeper and broader about their system requirements.
+Always analyze the complete context of previously collected information to ask insightful follow-up questions.
+
+Core Principles:
+1. Never accept surface-level answers - dig deeper with specific follow-up questions
+2. Use the context from previous answers to identify gaps and potential oversights
+3. Help users think through implications of their requirements
+4. Challenge assumptions and probe for edge cases
+5. Identify missing dependencies between features
+
+Question Strategy:
+- Start broad, then systematically drill down into details
+- When a feature is mentioned, explore its complete ecosystem of related features
+- Use previously collected information to inform follow-up questions
+- Help users think through the full lifecycle of their features
+
+For example:
+If user mentions "user profiles":
+- DON'T just accept it and move on
+- DO ask about: profile data structure, privacy settings, update workflows, 
+  verification needs, integration with other features mentioned earlier
+
+If discussing technical requirements:
+- DON'T accept vague metrics like "high performance"
+- DO ask for specific numbers, patterns, and scenarios based on previously 
+  described features and user base
+
+Remember: You have the complete context of all previously collected information.
+Use this context to:
+1. Identify gaps between different aspects of the system
+2. Spot missing requirements that would be needed to support previously mentioned features
+3. Help users think through how different parts of their system will interact
+4. Challenge inconsistencies between different requirements
+
+Important: Your role is to be a thought partner who helps users think through 
+ALL implications of their requirements. Use your expertise to help them consider 
+aspects they might not have thought about.`;
+
   // Base JSON schema structure that all steps will extend
   const baseSchema = {
     type: 'object',
@@ -513,11 +544,23 @@ async function getAIResponse(userMessage, context) {
 
   messages.push({ 
     role: 'system', 
-    content: `Conversation context:
-    Previous question: ${context.previousQuestion || 'None'}
-    Current step: ${context.step}
-    Current progress: ${JSON.stringify(context.currentStepInfo, null, 2)}
-    User's response: ${userMessage}`
+    content: `${systemPrompt}
+
+Current Context:
+Previous question: ${context.previousQuestion || 'None'}
+Current step: ${context.step}
+
+Complete collected information so far:
+${JSON.stringify(context.allCollectedInfo, null, 2)}
+
+User's latest response: ${userMessage}
+
+Use this context to:
+1. Cross-reference with previous answers
+2. Identify gaps or inconsistencies
+3. Ask about missing dependencies
+4. Challenge vague or incomplete responses
+5. Help user think through implications`
   });
 
   messages.push({ role: 'user', content: userMessage });
