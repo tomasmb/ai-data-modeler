@@ -183,7 +183,7 @@ To generate the best data model, I need some key details:
 🔹 **Who is your target audience?** (e.g., consumers, businesses, enterprise users).  
 🔹 **Do you have any security or compliance requirements?** (e.g., GDPR, HIPAA, SOC 2, encryption).  
 
-Let’s gather these details so we can create an optimal data model!`;
+Let's gather these details so we can create an optimal data model!`;
 
     case 'functionalRequirements':
       return `📌 Now, let's define **how your system operates** so we can structure the data model effectively.  
@@ -201,10 +201,10 @@ Tell me about:
   - What kind of reports or dashboards will be needed?  
   - How often will they be updated?  
 
-This will help structure the database to support your application’s core logic.`;
+This will help structure the database to support your application's core logic.`;
 
     case 'nonFunctionalRequirements':
-      return `⚙️ Now, let’s refine the **technical constraints & scalability** of your data model.  
+      return `⚙️ Now, let's refine the **technical constraints & scalability** of your data model.  
 
 Provide details on:  
 🔹 **Read vs. Write Operations:**  
@@ -409,9 +409,11 @@ aspects they might not have thought about.`;
               description: { type: ['string', 'null'] },
               industry: { type: ['string', 'null'] },
               targetMarket: { type: ['string', 'null'] },
-              securityRequirements: { type: ['string', 'null'] }
+              securityRequirements: { type: ['string', 'null'] },
+              suggestedDataModel: { type: ['string', 'null'] },
+              completed: { type: 'boolean' }
             },
-            required: ['type', 'description', 'industry', 'targetMarket', 'securityRequirements']
+            required: ['type', 'description', 'industry', 'targetMarket', 'securityRequirements', 'suggestedDataModel', 'completed']
           }
         }
       };
@@ -433,42 +435,26 @@ aspects they might not have thought about.`;
             type: 'object',
             additionalProperties: false,
             properties: {
-              userStories: { 
-                type: 'array',
-                items: { type: 'string' }
-              },
-              userTypes: {
-                type: 'array',
-                items: { type: 'string' }
-              },
-              keyFeatures: {
-                type: 'array',
-                items: { type: 'string' }
-              },
-              businessProcesses: {
-                type: 'array',
-                items: { type: 'string' }
-              },
-              integrations: {
-                type: 'array',
-                items: { type: 'string' }
-              },
+              userStories: { type: 'array', items: { type: 'string' } },
+              userTypes: { type: 'array', items: { type: 'string' } },
+              keyFeatures: { type: 'array', items: { type: 'string' } },
+              businessProcesses: { type: 'array', items: { type: 'string' } },
+              integrations: { type: 'array', items: { type: 'string' } },
               dataAccess: {
                 type: 'object',
                 additionalProperties: false,
                 properties: {
                   accessPatterns: { type: 'array', items: { type: 'string' } },
                   searchRequirements: { type: 'array', items: { type: 'string' } },
-                  filteringNeeds: { type: 'array', items: { type: 'string' } }
+                  filteringNeeds: { type: 'array', items: { type: 'string' } },
+                  queryPattern: { type: ['string', 'null'] }
                 },
-                required: ['accessPatterns', 'searchRequirements', 'filteringNeeds']
+                required: ['accessPatterns', 'searchRequirements', 'filteringNeeds', 'queryPattern']
               },
-              reportingNeeds: {
-                type: 'array',
-                items: { type: 'string' }
-              }
+              reportingNeeds: { type: 'array', items: { type: 'string' } },
+              completed: { type: 'boolean' }
             },
-            required: ['userStories', 'userTypes', 'keyFeatures', 'businessProcesses', 'integrations', 'dataAccess', 'reportingNeeds']
+            required: ['userStories', 'userTypes', 'keyFeatures', 'businessProcesses', 'integrations', 'dataAccess', 'reportingNeeds', 'completed']
           }
         }
       };
@@ -520,9 +506,10 @@ aspects they might not have thought about.`;
                     required: ['entities', 'frequency', 'patterns']
                   },
                   readWriteRatio: { type: ['string', 'null'] },
-                  consistencyRequirements: { type: 'array', items: { type: 'string' } }
+                  consistencyRequirements: { type: 'array', items: { type: 'string' } },
+                  schemaFlexibility: { type: ['string', 'null'] }
                 },
-                required: ['heavyRead', 'heavyWrite', 'readWriteRatio', 'consistencyRequirements']
+                required: ['heavyRead', 'heavyWrite', 'readWriteRatio', 'consistencyRequirements', 'schemaFlexibility']
               },
               traffic: {
                 type: 'object',
@@ -531,11 +518,13 @@ aspects they might not have thought about.`;
                   peakConcurrentUsers: { type: ['string', 'null'] },
                   averageDailyUsers: { type: ['string', 'null'] },
                   growthProjection: { type: ['string', 'null'] },
+                  expectedApiRequestsPerSecond: { type: ['string', 'null'] },
                   geographicDistribution: { type: ['string', 'null'] },
                   peakHours: { type: ['string', 'null'] },
                   seasonality: { type: ['string', 'null'] }
                 },
-                required: ['peakConcurrentUsers', 'averageDailyUsers', 'growthProjection', 'geographicDistribution', 'peakHours', 'seasonality']
+                required: ['peakConcurrentUsers', 'averageDailyUsers', 'growthProjection', 'expectedApiRequestsPerSecond', 
+                          'geographicDistribution', 'peakHours', 'seasonality']
               },
               dataVolume: {
                 type: 'object',
@@ -543,11 +532,14 @@ aspects they might not have thought about.`;
                 properties: {
                   initialSize: { type: ['string', 'null'] },
                   growthRate: { type: ['string', 'null'] },
-                  recordSizeLimits: { type: ['string', 'null'] },
+                  maxRecordSize: { type: ['string', 'null'] },
                   dataRetentionRequirements: { type: ['string', 'null'] },
-                  archivalNeeds: { type: ['string', 'null'] }
+                  archivalNeeds: { type: ['string', 'null'] },
+                  estimatedHistoricalData: { type: ['string', 'null'] },
+                  storageType: { type: ['string', 'null'] }
                 },
-                required: ['initialSize', 'growthRate', 'recordSizeLimits', 'dataRetentionRequirements', 'archivalNeeds']
+                required: ['initialSize', 'growthRate', 'maxRecordSize', 'dataRetentionRequirements', 
+                          'archivalNeeds', 'estimatedHistoricalData', 'storageType']
               },
               performance: {
                 type: 'object',
@@ -559,9 +551,33 @@ aspects they might not have thought about.`;
                   cacheableEntities: { type: 'array', items: { type: 'string' } }
                 },
                 required: ['expectedLatency', 'criticalOperations', 'slaRequirements', 'cacheableEntities']
-              }
+              },
+              availability: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  upTimeRequirements: { type: ['string', 'null'] },
+                  backupRequirements: { type: ['string', 'null'] },
+                  disasterRecovery: { type: ['string', 'null'] },
+                  multiRegion: { type: ['string', 'null'] }
+                },
+                required: ['upTimeRequirements', 'backupRequirements', 'disasterRecovery', 'multiRegion']
+              },
+              compliance: {
+                type: 'object',
+                additionalProperties: false,
+                properties: {
+                  dataResidency: { type: ['string', 'null'] },
+                  auditRequirements: { type: ['string', 'null'] },
+                  dataPrivacy: { type: ['string', 'null'] },
+                  encryptionAtRest: { type: ['string', 'null'] },
+                  encryptionInTransit: { type: ['string', 'null'] }
+                },
+                required: ['dataResidency', 'auditRequirements', 'dataPrivacy', 'encryptionAtRest', 'encryptionInTransit']
+              },
+              completed: { type: 'boolean' }
             },
-            required: ['dataOperations', 'traffic', 'dataVolume', 'performance']
+            required: ['dataOperations', 'traffic', 'dataVolume', 'performance', 'availability', 'compliance', 'completed']
           }
         }
       };

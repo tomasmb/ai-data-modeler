@@ -198,14 +198,27 @@ const AIAssistant = ({ dataModelId }) => {
     setMessage('');
     setIsLoading(true);
     
-    // Add immediate scroll after setting loading state
+    // Reset textarea height
+    if (inputRef.current) {
+      inputRef.current.style.height = '56px';
+    }
+
+    // Add user message to chat history immediately
+    const userMessageObj = {
+      sender: 'user',
+      content: userMessage,
+      timestamp: new Date().toISOString()
+    };
+    chatHistory.push(userMessageObj);
+    
+    // Add immediate scroll after adding message
     setTimeout(() => {
       const messagesContainer = messagesEndRef.current?.parentElement;
       if (messagesContainer) {
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
       }
     }, 0);
-    
+
     try {
       const response = await sendChatMessage({ 
         dataModelId, 
@@ -309,6 +322,11 @@ const AIAssistant = ({ dataModelId }) => {
     textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`; // Max height of 200px
   };
 
+  // Add this function to convert markdown-style bold to HTML
+  const formatMessage = (content) => {
+    return content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  };
+
   return (
     <div className='w-full md:w-1/2 bg-white rounded-lg shadow-lg p-4 flex flex-col'>
       <div className='flex items-center justify-between mb-4'>
@@ -366,7 +384,10 @@ const AIAssistant = ({ dataModelId }) => {
                     : 'bg-gray-100 text-gray-800 rounded-bl-none'
                 }`}
               >
-                <p className='whitespace-pre-wrap'>{msg.content}</p>
+                <p 
+                  className='whitespace-pre-wrap'
+                  dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
+                />
                 <span className='text-xs opacity-70 mt-1 block'>
                   {new Date(msg.timestamp).toLocaleTimeString()}
                 </span>

@@ -23,8 +23,9 @@ const DataModelPage = () => {
         definition: {}
       });
       if (createdModel?.id) {
-        // Use replace and reload to ensure clean state
-        window.location.href = `/data-model/${createdModel.id}`;
+        // Add a small delay to ensure server processing is complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        window.location.replace(`/data-model/${createdModel.id}`);
       } else {
         console.error('Created model missing ID');
       }
