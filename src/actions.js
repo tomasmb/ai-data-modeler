@@ -174,41 +174,75 @@ export const saveDataModelSchema = async ({ dataModelId, schema }, context) => {
 function getDefaultStepQuestion(step) {
   switch (step) {
     case 'projectDetails':
-      return `Let's gather information about your project. Please tell me about:
-1. The type of application you're building (e.g., SaaS, e-commerce, social platform)
-2. A detailed description of your project
-3. The industry sector it serves
-4. Your target market
-5. Any specific security requirements
+      return `🚀 Let's start by understanding your project!  
+      
+To generate the best data model, I need some key details:  
+🔹 **What type of application are you building?** (e.g., SaaS, e-commerce, fintech, IoT, social platform).  
+🔹 **Give me a brief project description** (main features, business goals, what problem it solves).  
+🔹 **Which industry does it serve?** (e.g., healthcare, logistics, finance, gaming).  
+🔹 **Who is your target audience?** (e.g., consumers, businesses, enterprise users).  
+🔹 **Do you have any security or compliance requirements?** (e.g., GDPR, HIPAA, SOC 2, encryption).  
 
-Answer these questions so we can get started.`;
+Let’s gather these details so we can create an optimal data model!`;
 
     case 'functionalRequirements':
-      return `I'll help you define your functional requirements. We'll need to cover:
-1. Different types of users (e.g., admin, regular users, moderators)
-2. Key features
-3. Main business processes
-4. Required integrations with other systems
-5. Data access patterns and search requirements
-6. Reporting needs
+      return `📌 Now, let's define **how your system operates** so we can structure the data model effectively.  
 
-With these requirements, we can start building your data model.`;
+Tell me about:  
+🔹 **User roles & permissions** (e.g., Admin, Moderator, Regular User, API Client).  
+🔹 **Key features & workflows** (e.g., user signup, checkout, content posting).  
+🔹 **Business processes** (e.g., order fulfillment, fraud detection, recommendation systems).  
+🔹 **External integrations** (e.g., Stripe for payments, Salesforce for CRM).  
+🔹 **Data access patterns:**  
+  - Will users frequently search/filter data?  
+  - Will you have complex queries with joins?  
+  - Do you need relationship-based queries (e.g., social graphs)?  
+🔹 **Reporting & analytics needs:**  
+  - What kind of reports or dashboards will be needed?  
+  - How often will they be updated?  
+
+This will help structure the database to support your application’s core logic.`;
 
     case 'nonFunctionalRequirements':
-      return `Let's define your technical requirements. We'll need to discuss:
-1. Data operations (heavy read/write patterns)
-2. Traffic expectations (peak users, daily average)
-3. Data volume (initial size, growth rate)
-4. Performance requirements
-5. Geographic distribution needs
-6. Data retention and archival requirements
+      return `⚙️ Now, let’s refine the **technical constraints & scalability** of your data model.  
 
-With this information we can optimize the data model.`;
+Provide details on:  
+🔹 **Read vs. Write Operations:**  
+  - Will your system be **read-heavy**, **write-heavy**, or **balanced**?  
+  - Which data entities will experience the most frequent operations?  
+🔹 **Traffic expectations:**  
+  - Estimated daily active users?  
+  - Peak concurrent users?  
+  - Expected API request rate (e.g., 1000 requests/sec)?  
+🔹 **Data volume & growth:**  
+  - Initial database size?  
+  - Expected growth rate over time?  
+  - Any historical data to import?  
+🔹 **Performance requirements:**  
+  - Target query response times?  
+  - Any latency-sensitive operations?  
+  - Caching needs?  
+🔹 **Geographic distribution:**  
+  - Will your system require **multi-region** deployment?  
+  - Should data be **replicated across locations**?  
+🔹 **Data retention & archival:**  
+  - How long should data be kept?  
+  - Do you need automated archival strategies?  
+🔹 **Availability & disaster recovery:**  
+  - Required uptime (99.9%, 99.99%, etc.)?  
+  - Backup & recovery strategy?  
+  - Multi-region failover considerations?  
+🔹 **Compliance & security:**  
+  - Do you need **encryption at rest** or **in transit**?  
+  - Are there industry-specific compliance needs?  
+  - Should data be **anonymized or tokenized** for privacy?  
+
+Understanding these constraints will help us build a **scalable and efficient** data model.`;
 
     default:
-      return "How can I help you with your data model?";
+      return "🤖 How can I assist you with your data model today?";
   }
-}
+};
 
 export const sendChatMessage = async ({ dataModelId, content, context }, ctx) => {
   if (!ctx.user) { throw new HttpError(401) }

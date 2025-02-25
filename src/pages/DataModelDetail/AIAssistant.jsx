@@ -31,7 +31,7 @@ const AIAssistant = ({ dataModelId }) => {
           accessPatterns: [],
           searchRequirements: [],
           filteringNeeds: [],
-          queryComplexity: null, // Added: "simple lookups", "heavy joins", "graph traversal"
+          queryPattern: null, // Updated: "simple lookups", "heavy joins", "graph traversal"
         },
         reportingNeeds: [],
         completed: false
@@ -49,25 +49,26 @@ const AIAssistant = ({ dataModelId }) => {
             patterns: [],
           },
           readWriteRatio: null,
-          consistencyRequirements: [],
-          schemaFlexibility: null, // Added: "low", "medium", "high"
+          consistencyRequirements: [], // e.g., "strong", "eventual", "custom"
+          schemaFlexibility: null, // "low", "medium", "high"
         },
         traffic: {
           peakConcurrentUsers: null,
           averageDailyUsers: null,
           growthProjection: null,
-          expectedApiRequestsPerSecond: null, // Added: better API-based scaling estimates
+          expectedApiRequestsPerSecond: null, // Added: API request scaling estimates
           geographicDistribution: null,
           peakHours: null,
-          seasonality: null,
+          seasonality: null, // Added: Handling spikes due to seasonal trends
         },
         dataVolume: {
           initialSize: null,
           growthRate: null,
-          recordSizeLimits: null,
+          maxRecordSize: null, // Updated: Clarified as maximum size per record
           dataRetentionRequirements: null,
           archivalNeeds: null,
-          estimatedHistoricalData: null, // Added: for ML-based forecasting
+          estimatedHistoricalData: null, // Added: Useful for ML-based forecasting
+          storageType: null, // Added: Structured (RDBMS) vs. Unstructured (Object Storage)
         },
         performance: {
           expectedLatency: null,
@@ -85,13 +86,14 @@ const AIAssistant = ({ dataModelId }) => {
           dataResidency: null,
           auditRequirements: null,
           dataPrivacy: null,
-          encryptionAtRest: null, // Added: Ensuring database security compliance
-          encryptionInTransit: null, // Added: Security for API calls
+          encryptionAtRest: null, // Ensuring database security compliance
+          encryptionInTransit: null, // Security for API calls
         },
         completed: false
       }
     };
   });
+  
   
   const { data: chatHistory = [] } = useQuery(getDataModelChatHistory, { dataModelId });
   const [previousQuestion, setPreviousQuestion] = useState(null);
