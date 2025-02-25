@@ -51,8 +51,12 @@ model Field {
     name        String
     fieldType   String    
     isRequired  Boolean   @default(false)
+    isUnique    Boolean   @default(false)
+    isIndex     Boolean   @default(false)
+    isPrimary   Boolean   @default(false)
     defaultValue String?
-    constraints Json?     // This is now supported in PostgreSQL
+    enumValues  Json?     // Store enum values as JSON array
+    constraints Json?     
     entity      ModelEntity @relation(fields: [entityId], references: [id])
     entityId    Int
     fromRelations Relation[] @relation("FromField")

@@ -3,6 +3,7 @@ import Editor from '@monaco-editor/react';
 import { saveDataModelSchema } from 'wasp/client/operations';
 import { ExampleSchemaModal } from './ExampleSchemaModal';
 import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import { parseDataModelSchema } from '../../lib/modelParser';
 
 const SchemaHintsModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
@@ -29,11 +30,11 @@ const SchemaHintsModal = ({ isOpen, onClose }) => {
             <div className="bg-gray-50 p-4 rounded-lg">
               <pre className="text-sm text-gray-700">
 {`entity User {
-  id: ID
-  name: string
-  age: number
-  isActive: boolean
-  createdAt: datetime
+  id: ID @primary
+  name: string @nullable(false)
+  email: email @unique @index
+  status: enum(active,suspended) @default(active)
+  createdAt: datetime @default(now)
 }`}</pre>
             </div>
           </div>
@@ -46,18 +47,29 @@ const SchemaHintsModal = ({ isOpen, onClose }) => {
                 <h4 className="font-medium mb-2 text-gray-700">Basic Types</h4>
                 <ul className="space-y-1 text-sm text-gray-600">
                   <li><code className="text-blue-600">string</code> - Text values</li>
+                  <li><code className="text-blue-600">text</code> - Long text values</li>
                   <li><code className="text-blue-600">number</code> - Numeric values</li>
+                  <li><code className="text-blue-600">int</code> - Integer values</li>
+                  <li><code className="text-blue-600">decimal</code> - Decimal values</li>
                   <li><code className="text-blue-600">boolean</code> - True/false values</li>
                   <li><code className="text-blue-600">datetime</code> - Date and time</li>
+                  <li><code className="text-blue-600">date</code> - Date only</li>
+                  <li><code className="text-blue-600">time</code> - Time only</li>
                   <li><code className="text-blue-600">ID</code> - Unique identifier</li>
+                  <li><code className="text-blue-600">json</code> - JSON data</li>
+                  <li><code className="text-blue-600">email</code> - Email addresses</li>
+                  <li><code className="text-blue-600">url</code> - URLs</li>
+                  <li><code className="text-blue-600">uuid</code> - UUID values</li>
                 </ul>
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2 text-gray-700">Relation Types</h4>
+                <h4 className="font-medium mb-2 text-gray-700">Field Modifiers</h4>
                 <ul className="space-y-1 text-sm text-gray-600">
-                  <li><code className="text-blue-600">Entity</code> - Single relation</li>
-                  <li><code className="text-blue-600">Entity[]</code> - Array relation</li>
-                  <li><code className="text-blue-600">Entity.field</code> - Field reference</li>
+                  <li><code className="text-blue-600">@primary</code> - Primary key</li>
+                  <li><code className="text-blue-600">@unique</code> - Unique constraint</li>
+                  <li><code className="text-blue-600">@index</code> - Create index</li>
+                  <li><code className="text-blue-600">@nullable(true|false)</code> - Nullable field</li>
+                  <li><code className="text-blue-600">@default(value)</code> - Default value</li>
                 </ul>
               </div>
             </div>
@@ -69,16 +81,29 @@ const SchemaHintsModal = ({ isOpen, onClose }) => {
             <div className="bg-gray-50 p-4 rounded-lg">
               <pre className="text-sm text-gray-700">
 {`entity User {
-  id: ID
+  id: ID @primary
   posts: Post[]      // One-to-many relation
   profile: Profile   // One-to-one relation
 }
 
 entity Post {
-  id: ID
+  id: ID @primary
   author: User       // Reference to User
-  title: string
+  title: string @index
   authorName: User.name  // Field reference
+}`}</pre>
+            </div>
+          </div>
+
+          {/* Enum Example Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Enum Example</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <pre className="text-sm text-gray-700">
+{`entity Task {
+  id: ID @primary
+  status: enum(pending,active,completed) @default(pending)
+  priority: enum(low,medium,high)
 }`}</pre>
             </div>
           </div>
@@ -159,15 +184,24 @@ const CodeEditor = ({ dataModelId, modelData }) => {
     monaco.languages.register({ id: 'datamodel' });
     monaco.languages.setMonarchTokensProvider('datamodel', {
       keywords: ['entity'],
-      typeKeywords: ['string', 'number', 'boolean', 'datetime', 'ID'],
+      typeKeywords: [
+        'string', 'number', 'boolean', 'datetime', 'ID',
+        'int', 'float', 'decimal', 'date', 'time',
+        'json', 'text', 'email', 'url', 'uuid',
+        'bigint', 'binary', 'enum'
+      ],
+      modifiers: ['unique', 'index', 'primary', 'nullable', 'default'],
       tokenizer: {
         root: [
           [/entity/, 'keyword'],
-          [/string|number|boolean|datetime|ID/, 'type'],
+          [/@\w+/, 'modifier'],  // Highlight modifiers
+          [/enum\([^)]*\)/, 'type'],  // Highlight enum definitions
+          [/(string|number|boolean|datetime|ID|int|float|decimal|date|time|json|text|email|url|uuid|bigint|binary)\b/, 'type'],
           [/\/\/.*$/, 'comment'],
           [/[a-zA-Z_]\w*/, 'identifier'],
           [/[{}[\]]/, 'delimiter'],
           [/:/, 'delimiter'],
+          [/@/, 'delimiter'],
         ],
       },
     });
@@ -194,13 +228,8 @@ const CodeEditor = ({ dataModelId, modelData }) => {
 
   const validateSchema = (schema) => {
     try {
-      const lines = schema.split('\n');
-      let entities = new Map();
-      let entityFields = new Map();
-      let currentEntity = null;
-      let currentFields = new Map();
-      let lineNumber = 0;
-
+      const result = parseDataModelSchema(schema);
+      
       // Clear existing markers first
       const monaco = window.monaco;
       const model = monaco?.editor?.getModels()[0];
@@ -208,124 +237,33 @@ const CodeEditor = ({ dataModelId, modelData }) => {
         monaco.editor.setModelMarkers(model, 'owner', []);
       }
 
-      // First pass: collect all entity names
-      for (const line of lines) {
-        lineNumber++;
-        const trimmedLine = line.trim();
-        if (trimmedLine.startsWith('//') || !trimmedLine) continue;
-
-        if (trimmedLine.startsWith('entity')) {
-          const match = trimmedLine.match(/entity\s+(\w+)\s*{/);
-          if (!match) {
-            throw {
-              message: `Invalid entity declaration`,
-              lineNumber,
-              line: trimmedLine
+      // If there are validation errors, show them in the editor
+      if (!result.isValid) {
+        if (model) {
+          const markers = result.errors.map(error => {
+            const match = error.match(/Line (\d+):/);
+            const lineNumber = match ? parseInt(match[1]) : 1;
+            const lineContent = model.getLineContent(lineNumber);
+            
+            return {
+              severity: monaco.MarkerSeverity.Error,
+              message: error.replace(/Line \d+: /, ''),
+              startLineNumber: lineNumber,
+              startColumn: 1,
+              endLineNumber: lineNumber,
+              endColumn: lineContent.length + 1
             };
-          }
-          const entityName = match[1];
-          if (entities.has(entityName)) {
-            throw {
-              message: `Duplicate entity name: ${entityName}`,
-              lineNumber,
-              line: trimmedLine
-            };
-          }
-          currentEntity = entityName;
-          currentFields = new Map();
-          entities.set(entityName, { 
-            fields: currentFields,
-            relationFields: new Map()
           });
-        } 
-        else if (currentEntity && trimmedLine.includes(':')) {
-          const [fieldName, fieldType] = trimmedLine.split(':').map(s => s.trim());
-          if (!fieldName || !fieldType || !fieldName.match(/^\w+$/)) {
-            throw {
-              message: `Invalid field declaration`,
-              lineNumber,
-              line: trimmedLine
-            };
-          }
-
-          entityFields.set(`${currentEntity}.${fieldName}`, {
-            fieldType,
-            lineNumber,
-            line: trimmedLine
-          });
-
-          if (currentFields.has(fieldName)) {
-            throw {
-              message: `Duplicate field name "${fieldName}" in entity "${currentEntity}"`,
-              lineNumber,
-              line: trimmedLine
-            };
-          }
-
-          currentFields.set(fieldName, fieldType);
+          
+          monaco.editor.setModelMarkers(model, 'owner', markers);
         }
-      }
-
-      // Second pass: validate all entity references and their fields
-      for (const [fieldKey, fieldInfo] of entityFields) {
-        const { fieldType, lineNumber, line } = fieldInfo;
-        const isArray = fieldType.endsWith('[]');
-        const baseType = fieldType.replace('[]', '');
-        const [entityType, referencedField] = baseType.split('.');
-        
-        const basicTypes = ['string', 'number', 'boolean', 'datetime', 'ID'];
-        
-        // If it's not a basic type, validate the entity and field reference
-        if (!basicTypes.includes(entityType)) {
-          if (!entities.has(entityType)) {
-            throw {
-              message: `Referenced entity "${entityType}" is not defined in the schema`,
-              lineNumber,
-              line
-            };
-          }
-
-          // If there's a field reference (Entity.field format), validate the field exists
-          if (referencedField) {
-            const referencedEntity = entities.get(entityType);
-            if (!referencedEntity.fields.has(referencedField)) {
-              throw {
-                message: `Referenced field "${referencedField}" does not exist in entity "${entityType}"`,
-                lineNumber,
-                line
-              };
-            }
-          }
-        }
+        throw new Error(result.errors[0]);
       }
 
       setParseError(null);
-      return { 
-        entities: Object.fromEntries([...entities].map(([name, data]) => [
-          name, 
-          { fields: Object.fromEntries(data.fields) }
-        ])),
-        relations: []
-      };
+      return result;
     } catch (error) {
       console.error('Validation error:', error);
-      
-      // Add error marker to the editor
-      const monaco = window.monaco;
-      const model = monaco?.editor?.getModels()[0];
-      
-      if (model && error.lineNumber) {
-        const lineContent = model.getLineContent(error.lineNumber);
-        monaco.editor.setModelMarkers(model, 'owner', [{
-          severity: monaco.MarkerSeverity.Error,
-          message: error.message,
-          startLineNumber: error.lineNumber,
-          startColumn: 1,
-          endLineNumber: error.lineNumber,
-          endColumn: lineContent.length + 1
-        }]);
-      }
-
       setParseError(error.message || 'Invalid schema format');
       return null;
     }

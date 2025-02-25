@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements } from 'wasp/client/operations';
+import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements, generateDataModel, saveDataModelSchema } from 'wasp/client/operations';
 
 const AIAssistant = ({ dataModelId }) => {
   const [message, setMessage] = useState('');
@@ -101,6 +101,7 @@ const AIAssistant = ({ dataModelId }) => {
     const saved = localStorage.getItem(`initializedSteps-${dataModelId}`);
     return saved ? new Set(JSON.parse(saved)) : new Set();
   });
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Add effect to save initializedSteps to localStorage when it changes
   useEffect(() => {
@@ -117,6 +118,23 @@ const AIAssistant = ({ dataModelId }) => {
       JSON.stringify(collectedInfo)
     );
   }, [collectedInfo, dataModelId]);
+
+  // Add persistence for phase and chatMode
+  useEffect(() => {
+    const savedPhase = localStorage.getItem(`phase-${dataModelId}`);
+    const savedChatMode = localStorage.getItem(`chatMode-${dataModelId}`);
+    if (savedPhase) setPhase(savedPhase);
+    if (savedChatMode) setChatMode(savedChatMode);
+  }, [dataModelId]);
+
+  // Save phase and chatMode when they change
+  useEffect(() => {
+    localStorage.setItem(`phase-${dataModelId}`, phase);
+  }, [phase, dataModelId]);
+
+  useEffect(() => {
+    localStorage.setItem(`chatMode-${dataModelId}`, chatMode);
+  }, [chatMode, dataModelId]);
 
   // Calculate progress based on completed steps
   const calculateProgress = useCallback(() => {
@@ -191,6 +209,35 @@ const AIAssistant = ({ dataModelId }) => {
     }
   }, [chatHistory]);
 
+  // Add the generation step before moving to free phase
+  const handlePhaseTransition = async () => {
+    setIsGenerating(true);
+    try {
+      const result = await generateDataModel({
+        requirements: collectedInfo
+      });
+
+      // Update the CodeEditor with the generated schema
+      if (result.schema) {
+        // The parent component (index.jsx) should handle this
+        onSchemaGenerated(result.schema);
+      }
+
+      // Show the explanation in a modal or toast
+      setGenerationExplanation(result.explanation);
+      
+      // Move to free phase
+      setPhase('free');
+      setChatMode('questions');
+    } catch (error) {
+      console.error('Error generating schema:', error);
+      setGenerationError(error.message);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Modify the existing logic in sendChatMessage handler
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
 
@@ -255,7 +302,7 @@ const AIAssistant = ({ dataModelId }) => {
               case 'functionalRequirements':
                 return 'nonFunctionalRequirements';
               case 'nonFunctionalRequirements':
-                return null; // Move to free phase
+                return null;
               default:
                 return null;
             }
@@ -263,20 +310,18 @@ const AIAssistant = ({ dataModelId }) => {
 
           if (nextStep) {
             setCurrentStep(nextStep);
-            await initializeStep(nextStep); // Initialize the next step
+            await initializeStep(nextStep);
           } else {
-            // Save requirements to database when structured phase is complete
+            // Save requirements and generate schema
             try {
               await saveDataModelRequirements({
                 dataModelId,
                 requirements: collectedInfo
               });
+              await handlePhaseTransition();
             } catch (error) {
-              console.error('Error saving requirements:', error);
+              console.error('Error in phase transition:', error);
             }
-            
-            setPhase('free');
-            setChatMode('questions');
           }
           setPreviousQuestion(null);
         }
@@ -326,6 +371,21 @@ const AIAssistant = ({ dataModelId }) => {
   const formatMessage = (content) => {
     return content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   };
+
+  // Add the generating overlay
+  if (isGenerating) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white p-8 rounded-lg shadow-xl text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <h3 className="text-xl font-semibold mb-2">Generating Data Model</h3>
+          <p className="text-gray-600">
+            Using AI to create the optimal data model based on your requirements...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className='w-full md:w-1/2 bg-white rounded-lg shadow-lg p-4 flex flex-col'>

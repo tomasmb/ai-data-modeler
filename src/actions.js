@@ -108,7 +108,12 @@ export const saveDataModelSchema = async ({ dataModelId, schema }, context) => {
               data: {
                 name: fieldName,
                 fieldType: processedFieldType,
-                isRequired: true,
+                isRequired: !fieldType.isNullable,
+                isUnique: fieldType.isUnique,
+                isIndex: fieldType.isIndex,
+                isPrimary: fieldType.isPrimary,
+                defaultValue: fieldType.defaultValue,
+                enumValues: fieldType.enumValues ? JSON.stringify(fieldType.enumValues) : null,
                 entityId: createdEntity.id
               }
             });
@@ -683,3 +688,136 @@ export const saveDataModelRequirements = async (args, context) => {
     }
   });
 }
+
+export const generateDataModel = async ({ requirements }, ctx) => {
+  if (!ctx.user) { throw new HttpError(401) }
+
+  const messages = [];
+  
+  const systemPrompt = `You are an expert data modeler tasked with generating a precise data model schema.
+You will analyze the provided requirements and create a schema that follows our specific syntax.
+
+Schema Syntax Rules:
+1. Entity declarations use the 'entity' keyword followed by PascalCase name
+2. Fields are declared with camelCase names followed by their type
+3. Available built-in types: string, number, boolean, datetime, ID, int, float, decimal, date, time, json, text, email, url, uuid, bigint, binary, enum
+4. Field modifiers: @unique, @index, @primary, @nullable, @default
+5. Relations are expressed through field types referencing other entities
+6. Array relations use [] suffix
+
+Example Valid Schema:
+entity User {
+  id: ID @primary
+  email: string @unique
+  profile: Profile  // 1:1 relation
+  posts: Post[]     // 1:n relation
+}
+
+entity Profile {
+  id: ID @primary
+  userId: ID @unique
+  bio: text @nullable
+  avatar: string @nullable
+}
+
+entity Post {
+  id: ID @primary
+  title: string
+  content: text
+  status: enum(draft,published,archived)
+  authorId: ID
+  author: User
+  createdAt: datetime
+}
+
+Design Principles:
+1. Every entity must have an ID field as primary key
+2. Use appropriate indexes for frequently queried fields
+3. Consider query patterns when designing relations
+4. Add proper constraints (unique, nullable) based on business rules
+5. Use enum types for fields with fixed value sets
+6. Consider data validation and integrity requirements
+
+Your response must be a JSON object with:
+1. A detailed explanation of the model design decisions
+2. The complete schema string following our syntax
+3. A list of key features the schema supports`;
+
+  const jsonSchema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      explanation: {
+        type: 'string',
+        description: 'Detailed explanation of the data model design decisions'
+      },
+      schema: {
+        type: 'string',
+        description: 'The complete data model schema following the specified syntax'
+      },
+      supportedFeatures: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'List of key features this schema supports'
+      }
+    },
+    required: ['explanation', 'schema', 'supportedFeatures']
+  };
+
+  // Add detailed requirements analysis
+  messages.push({
+    role: 'system',
+    content: `${systemPrompt}
+
+Analyze these detailed requirements to create an optimal schema:
+Project Details:
+${JSON.stringify(requirements.projectDetails, null, 2)}
+
+Functional Requirements:
+${JSON.stringify(requirements.functionalRequirements, null, 2)}
+
+Non-Functional Requirements:
+${JSON.stringify(requirements.nonFunctionalRequirements, null, 2)}
+
+Consider:
+1. Access patterns from dataAccess requirements
+2. Heavy read/write entities from dataOperations
+3. Performance requirements for critical operations
+4. Data volume and growth expectations
+5. Security and compliance needs`
+  });
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages,
+      temperature: 0.7,
+      response_format: { 
+        type: "json_schema",
+        schema: jsonSchema
+      }
+    });
+
+    const response = JSON.parse(completion.choices[0].message.content);
+    
+    // Validate the generated schema using modelParser
+    const parsedSchema = parseDataModelSchema(response.schema);
+    if (!parsedSchema.isValid) {
+      throw new HttpError(400, {
+        message: 'Generated schema is invalid',
+        details: parsedSchema.errors
+      });
+    }
+
+    return {
+      explanation: response.explanation,
+      schema: response.schema,
+      supportedFeatures: response.supportedFeatures,
+      entities: parsedSchema.entities,
+      relations: parsedSchema.relations
+    };
+  } catch (error) {
+    console.error('Error generating schema:', error);
+    throw new HttpError(500, 'Failed to generate data model schema');
+  }
+};

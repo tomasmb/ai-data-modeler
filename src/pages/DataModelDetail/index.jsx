@@ -100,6 +100,13 @@ const DataModelPage = () => {
     }
   };
 
+  const handleSchemaGenerated = (schema) => {
+    // Update the CodeEditor with the new schema
+    if (modelData) {
+      modelData.schema = schema;
+    }
+  };
+
   if (isLoading || isLoadingSchema) return 'Loading...';
   if (error || errorSchema) return 'Error: ' + (error || errorSchema);
 
@@ -145,7 +152,10 @@ const DataModelPage = () => {
       </div>
 
       <div className='flex gap-4 mb-6'>
-        <AIAssistant dataModelId={id} />
+        <AIAssistant 
+          dataModelId={id} 
+          onSchemaGenerated={handleSchemaGenerated}
+        />
         <CodeEditor
           dataModelId={id}
           modelData={modelData}

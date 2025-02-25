@@ -63,7 +63,14 @@ export const parseDataModelSchema = (schema) => {
 
       // Process modifiers
       modifiers.forEach(modifier => {
-        const [mod, value] = modifier.split('=').map(s => s.trim());
+        // Extract modifier name and any parameters
+        const modifierMatch = modifier.match(/(\w+)(?:\((.*)\))?/);
+        if (!modifierMatch) {
+          errors.push(`Line ${i + 1}: Invalid modifier format "${modifier}"`);
+          return;
+        }
+        
+        const [, mod, value] = modifierMatch;
         if (!FIELD_MODIFIERS.includes(mod)) {
           errors.push(`Line ${i + 1}: Unknown modifier "${mod}"`);
           return;
@@ -93,22 +100,23 @@ export const parseDataModelSchema = (schema) => {
       const baseType = fieldConfig.type.replace('[]', '');
       const [entityType, referencedField] = baseType.split('.');
 
-      // Validate the type
-      const isBuiltInType = BUILT_IN_TYPES.includes(entityType);
-      const isEntityType = entities.has(entityType);
-      const isEnumType = entityType === 'enum' && fieldConfig.type.includes('(');
+      // Extract the base type for enums (e.g., "enum" from "enum(active,archived,draft)")
+      const enumMatch = baseType.match(/^enum\((.*)\)$/);
+      const isEnumType = enumMatch !== null;
+      const baseEntityType = isEnumType ? 'enum' : entityType;
 
-      if (!isBuiltInType && !isEntityType && !isEnumType) {
+      // Validate the type
+      const isBuiltInType = BUILT_IN_TYPES.includes(baseEntityType);
+      const isEntityType = entities.has(baseEntityType);
+
+      if (!isBuiltInType && !isEntityType) {
         errors.push(`Line ${i + 1}: Unknown type "${entityType}"`);
         continue;
       }
 
       // Parse enum values if type is enum
       if (isEnumType) {
-        const enumMatch = fieldConfig.type.match(/enum\((.*)\)/);
-        if (enumMatch) {
-          fieldConfig.enumValues = enumMatch[1].split(',').map(v => v.trim());
-        }
+        fieldConfig.enumValues = enumMatch[1].split(',').map(v => v.trim());
       }
 
       // Add field to entity
@@ -134,4 +142,4 @@ export const parseDataModelSchema = (schema) => {
     entities: Object.fromEntries(entities),
     relations: Object.fromEntries(relations)
   };
-}; 
+};

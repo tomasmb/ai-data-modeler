@@ -81,3 +81,8 @@ action saveDataModelRequirements {
   fn: import { saveDataModelRequirements } from "@src/actions.js",
   entities: [DataModel]
 }
+
+action generateDataModel {
+  fn: import { generateDataModel } from "@src/actions.js",
+  entities: [DataModel]
+}
