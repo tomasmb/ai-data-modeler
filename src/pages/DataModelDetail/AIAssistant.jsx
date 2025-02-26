@@ -7,9 +7,18 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
-  const [phase, setPhase] = useState('structured'); // 'structured' or 'free'
-  const [currentStep, setCurrentStep] = useState('projectDetails'); // 'projectDetails', 'functionalRequirements', 'nonFunctionalRequirements'
-  const [chatMode, setChatMode] = useState('questions'); // 'questions' or 'modifications'
+  const [phase, setPhase] = useState(() => {
+    const savedPhase = localStorage.getItem(`phase-${dataModelId}`);
+    return savedPhase || 'structured';
+  });
+  const [currentStep, setCurrentStep] = useState(() => {
+    const savedStep = localStorage.getItem(`currentStep-${dataModelId}`);
+    return savedStep || 'projectDetails';
+  });
+  const [chatMode, setChatMode] = useState(() => {
+    const savedChatMode = localStorage.getItem(`chatMode-${dataModelId}`);
+    return savedChatMode || 'questions';
+  });
   const [collectedInfo, setCollectedInfo] = useState(() => {
     const saved = localStorage.getItem(`collectedInfo-${dataModelId}`);
     return saved ? JSON.parse(saved) : {
@@ -62,6 +71,10 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
 
+  // Add new state for tracking repeated questions
+  const [previouslyAskedFields, setPreviouslyAskedFields] = useState({});
+  const [attemptCounts, setAttemptCounts] = useState({});
+
   // Add effect to save initializedSteps to localStorage when it changes
   useEffect(() => {
     localStorage.setItem(
@@ -92,14 +105,6 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     saveRequirements();
   }, [collectedInfo, dataModelId]);
 
-  // Add persistence for phase and chatMode
-  useEffect(() => {
-    const savedPhase = localStorage.getItem(`phase-${dataModelId}`);
-    const savedChatMode = localStorage.getItem(`chatMode-${dataModelId}`);
-    if (savedPhase) setPhase(savedPhase);
-    if (savedChatMode) setChatMode(savedChatMode);
-  }, [dataModelId]);
-
   // Save phase and chatMode when they change
   useEffect(() => {
     localStorage.setItem(`phase-${dataModelId}`, phase);
@@ -108,6 +113,11 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
   useEffect(() => {
     localStorage.setItem(`chatMode-${dataModelId}`, chatMode);
   }, [chatMode, dataModelId]);
+
+  // Save currentStep when it changes
+  useEffect(() => {
+    localStorage.setItem(`currentStep-${dataModelId}`, currentStep);
+  }, [currentStep, dataModelId]);
 
   // Calculate progress based on completed steps
   const calculateProgress = useCallback(() => {
@@ -135,6 +145,10 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
       return;
     }
 
+    // Reset tracking for the new step
+    setPreviouslyAskedFields({});
+    setAttemptCounts({});
+    
     setIsLoading(true);
     try {
       const response = await sendChatMessage({
@@ -146,7 +160,9 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
           currentStepInfo: collectedInfo[step],
           previousQuestion: null,
           isNewStep: true,
-          isInitialMessage: true
+          isInitialMessage: true,
+          previouslyAskedFields,
+          attemptCounts
         }
       });
 
@@ -162,13 +178,59 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     }
   };
 
-  // Initialize first step on component mount
+  // Simplify the initialization logic to ensure it works reliably
   useEffect(() => {
-    if (!isMounted.current && chatHistory.length === 0 && !initializedSteps.has('projectDetails')) {
+    // This effect should only run once on mount
+    if (isMounted.current) return;
+    
+    const loadSavedState = async () => {
+      // Load requirements data
+      if (modelData?.requirements) {
+        setCollectedInfo(modelData.requirements);
+      } else {
+        const savedInfo = localStorage.getItem(`collectedInfo-${dataModelId}`);
+        if (savedInfo) {
+          try {
+            setCollectedInfo(JSON.parse(savedInfo));
+          } catch (e) {
+            console.error('Error parsing saved info:', e);
+          }
+        }
+      }
+      
+      // Mark as mounted immediately to prevent re-initialization
       isMounted.current = true;
-      initializeStep('projectDetails');
-    }
-  }, [chatHistory]);
+      
+      // Initialize the step if needed
+      setTimeout(() => {
+        if (!initializedSteps.has(currentStep) && chatHistory.length === 0) {
+          initializeStep(currentStep);
+        }
+      }, 100);
+    };
+    
+    loadSavedState();
+    
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataModelId]);
+
+  // Make sure we save currentStep changes to localStorage
+  useEffect(() => {
+    if (!isMounted.current) return;
+    localStorage.setItem(`currentStep-${dataModelId}`, currentStep);
+  }, [currentStep, dataModelId]);
+
+  // Make sure we save phase changes to localStorage
+  useEffect(() => {
+    if (!isMounted.current) return;
+    localStorage.setItem(`phase-${dataModelId}`, phase);
+  }, [phase, dataModelId]);
+
+  // Make sure we save chatMode changes to localStorage
+  useEffect(() => {
+    if (!isMounted.current) return;
+    localStorage.setItem(`chatMode-${dataModelId}`, chatMode);
+  }, [chatMode, dataModelId]);
 
   // Modify the handlePhaseTransition function
   const handlePhaseTransition = async () => {
@@ -264,7 +326,13 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
 
-    const userMessage = message.trim();
+    const userMessage = {
+      content: message,
+      sender: 'user',
+      timestamp: new Date().toISOString()
+    };
+
+    setChatHistory(prev => [...prev, userMessage]);
     setMessage('');
     setIsLoading(true);
     
@@ -274,14 +342,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     }
 
     // Add user message to chat history immediately
-    const userMessageObj = {
-      sender: 'user',
-      content: userMessage,
-      timestamp: new Date().toISOString()
-    };
-    
-    // Create a new array with the user message added
-    const updatedChatHistory = [...chatHistory, userMessageObj];
+    const updatedChatHistory = [...chatHistory, userMessage];
     
     // Update local chat history state
     setChatHistory(updatedChatHistory);
@@ -295,117 +356,86 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     }, 0);
 
     try {
-      // Use different actions based on the phase
-      if (phase === 'structured') {
-        const response = await sendChatMessage({ 
-          dataModelId, 
-          content: userMessage,
-          context: {
-            phase,
-            step: currentStep,
-            allCollectedInfo: collectedInfo,
-            currentStepInfo: collectedInfo[currentStep],
-            previousQuestion,
-            isNewStep: false
-          }
+      const response = await sendChatMessage({
+        dataModelId,
+        content: message,
+        context: {
+          phase,
+          step: currentStep,
+          currentStepInfo: collectedInfo[currentStep] || {},
+          allCollectedInfo: collectedInfo,
+          previousQuestion,
+          // Pass the tracking information
+          previouslyAskedFields,
+          attemptCounts
+        }
+      });
+
+      // Update the tracking information from the response
+      if (response.previouslyAskedFields) {
+        setPreviouslyAskedFields(response.previouslyAskedFields);
+      }
+      
+      if (response.attemptCounts) {
+        setAttemptCounts(response.attemptCounts);
+      }
+
+      // Update collected info with AI's response
+      if (response.updatedInfo) {          
+        setCollectedInfo(prevState => {
+          // Create a deep copy of the entire state
+          const newState = JSON.parse(JSON.stringify(prevState));
+          
+          // Create the updated step info
+          const updatedStepInfo = { ...newState[currentStep] };
+          
+          // Only update properties that aren't null
+          Object.entries(response.updatedInfo).forEach(([key, value]) => {
+            if (value !== null) {
+              updatedStepInfo[key] = value;
+            }
+          });
+          
+          // Always update the completed flag
+          updatedStepInfo.completed = response.completed;
+          
+          // Replace the step in the new state
+          newState[currentStep] = updatedStepInfo;
+          
+          // Return a completely new object
+          return { ...newState };
         });
         
-        // Update collected info with AI's response
-        if (response.updatedInfo) {          
-          setCollectedInfo(prevState => {
-            // Create a deep copy of the entire state
-            const newState = JSON.parse(JSON.stringify(prevState));
-            
-            // Create the updated step info
-            const updatedStepInfo = { ...newState[currentStep] };
-            
-            // Only update properties that aren't null
-            Object.entries(response.updatedInfo).forEach(([key, value]) => {
-              if (value !== null) {
-                updatedStepInfo[key] = value;
-              }
-            });
-            
-            // Always update the completed flag
-            updatedStepInfo.completed = response.completed;
-            
-            // Replace the step in the new state
-            newState[currentStep] = updatedStepInfo;
-            
-            // Return a completely new object
-            return { ...newState };
-          });
-          
-          // Store the follow-up question for next context
-          setPreviousQuestion(response.followUpQuestion);
+        // Store the follow-up question for next context
+        setPreviousQuestion(response.followUpQuestion);
 
-          // Handle step completion and phase transition
-          if (response.completed === true) {
-            const nextStep = (() => {
-              switch (currentStep) {
-                case 'projectDetails':
-                  return 'functionalRequirements';
-                case 'functionalRequirements':
-                  return 'nonFunctionalRequirements';
-                case 'nonFunctionalRequirements':
-                  return null;
-                default:
-                  return null;
-              }
-            })();
-
-            if (nextStep) {
-              setCurrentStep(nextStep);
-              await initializeStep(nextStep);
-            } else {
-              // No need to save requirements again, just transition to the next phase
-              try {
-                await handlePhaseTransition();
-              } catch (error) {
-                console.error('Error in phase transition:', error);
-              }
+        // Handle step completion and phase transition
+        if (response.completed === true) {
+          const nextStep = (() => {
+            switch (currentStep) {
+              case 'projectDetails':
+                return 'functionalRequirements';
+              case 'functionalRequirements':
+                return 'nonFunctionalRequirements';
+              case 'nonFunctionalRequirements':
+                return null;
+              default:
+                return null;
             }
-            setPreviousQuestion(null);
+          })();
+
+          if (nextStep) {
+            setCurrentStep(nextStep);
+            await initializeStep(nextStep);
+          } else {
+            // No need to save requirements again, just transition to the next phase
+            try {
+              await handlePhaseTransition();
+            } catch (error) {
+              console.error('Error in phase transition:', error);
+            }
           }
-        }
-      } else {
-        // Free phase - use the askDataModelQuestion action
-        if (chatMode === 'modifications') {
-          // For modifications, show the generating overlay
-          setIsGenerating(true);
-          
-          // For modifications, we need to handle the schema update
-          const response = await askDataModelQuestion({
-            dataModelId,
-            content: userMessage,
-            chatMode
-          });
-          
-          // The response should include the schema if modification was successful
-          if (response.schema) {
-            // Update the schema in the editor
-            onSchemaGenerated(response.schema);
-            
-            // Add a system message to indicate the schema was updated
-            const systemMessage = {
-              sender: 'ai',
-              content: '✅ Schema has been updated successfully!',
-              timestamp: new Date().toISOString()
-            };
-            
-            // Update local chat history with the system message
-            setChatHistory(prev => [...prev, systemMessage]);
-          }
-          
-          // Hide the generating overlay
-          setIsGenerating(false);
-        } else {
-          // For questions, just send the message and get a response
-          await askDataModelQuestion({
-            dataModelId,
-            content: userMessage,
-            chatMode
-          });
+          setPreviousQuestion(null);
         }
       }
       
@@ -529,24 +559,6 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     setCollectedInfo(updatedInfo);
     // Note: We don't need to explicitly save to database here since the useEffect will handle it
   };
-
-  // This useEffect loads from localStorage or modelData - only on mount
-  useEffect(() => {
-    if (modelData?.requirements) {
-      setCollectedInfo(modelData.requirements);
-    } else {
-      // Fallback to localStorage if no requirements in model data
-      const savedInfo = localStorage.getItem(`collectedInfo-${dataModelId}`);
-      if (savedInfo) {
-        try {
-          setCollectedInfo(JSON.parse(savedInfo));
-        } catch (e) {
-          console.error('Error parsing saved info:', e);
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty dependency array - only run on mount
 
   // Add the generating overlay
   if (isGenerating) {

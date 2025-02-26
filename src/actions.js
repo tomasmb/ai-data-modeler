@@ -262,7 +262,10 @@ export const sendChatMessage = async ({ dataModelId, content, context }, ctx) =>
       previousMessage: userMessage.content, // Add previous message for context
       phase: context.phase,
       allCollectedInfo: context.allCollectedInfo,
-      previousQuestion: context.previousQuestion
+      previousQuestion: context.previousQuestion,
+      // Pass through tracking information for repeated questions
+      previouslyAskedFields: context.previouslyAskedFields || {},
+      attemptCounts: context.attemptCounts || {}
     });
 
     // Save AI's response
@@ -280,7 +283,10 @@ export const sendChatMessage = async ({ dataModelId, content, context }, ctx) =>
       aiMessage,
       updatedInfo: aiResponse.updatedInfo,
       completed: aiResponse.completed,
-      missingFields: identifyMissingFields(aiResponse.updatedInfo)
+      missingFields: identifyMissingFields(aiResponse.updatedInfo),
+      // Pass through tracking information for the next interaction
+      previouslyAskedFields: aiResponse.previouslyAskedFields || {},
+      attemptCounts: aiResponse.attemptCounts || {}
     };
   } catch (error) {
     console.error('OpenAI API error:', error);
@@ -450,28 +456,28 @@ DO ask specific questions like "What is your expected read/write ratio?" or "Wha
         break;
         
       case 'functionalRequirements':
-        if(!currentInfo.userTypes || !currentInfo.userTypes.length) {
+        if(!currentInfo.userTypes || !Array.isArray(currentInfo.userTypes) || !currentInfo.userTypes.length) {
           missingFields.push({
             field: 'userTypes',
             explanation: 'Different types of users in your system and their roles',
             importance: 'This affects user entity design and permission structures'
           });
         }
-        if(!currentInfo.keyFeatures || !currentInfo.keyFeatures.length) {
+        if(!currentInfo.keyFeatures || !Array.isArray(currentInfo.keyFeatures) || !currentInfo.keyFeatures.length) {
           missingFields.push({
             field: 'keyFeatures',
             explanation: 'The main features your application provides',
             importance: 'Each feature typically requires specific entities and relationships'
           });
         }
-        if(!currentInfo.dataAccess || !currentInfo.dataAccess.accessPatterns || !currentInfo.dataAccess.accessPatterns.length) {
+        if(!currentInfo.dataAccess || !currentInfo.dataAccess.accessPatterns || !Array.isArray(currentInfo.dataAccess.accessPatterns) || !currentInfo.dataAccess.accessPatterns.length) {
           missingFields.push({
             field: 'dataAccess.accessPatterns',
             explanation: 'How users will access and interact with data in your system',
             importance: 'Access patterns heavily influence indexing and relationship design'
           });
         }
-        if(!currentInfo.dataAccess || currentInfo.dataAccess.queryPattern === null) {
+        if(!currentInfo.dataAccess || currentInfo.dataAccess.queryPattern === null || currentInfo.dataAccess.queryPattern === undefined) {
           missingFields.push({
             field: 'dataAccess.queryPattern',
             explanation: 'The type of queries your system will primarily use (simple lookups, heavy joins, graph traversal)',
@@ -516,13 +522,6 @@ DO ask specific questions like "What is your expected read/write ratio?" or "Wha
             importance: 'Growth expectations affect scaling strategies and infrastructure planning'
           });
         }
-        if(!currentInfo.suggestedDataModel || currentInfo.suggestedDataModel === null) {
-          missingFields.push({
-            field: 'suggestedDataModel',
-            explanation: 'The most appropriate data model type for your needs (SQL, NoSQL, GraphDB)',
-            importance: 'This fundamental choice affects the entire structure of your data model'
-          });
-        }
         break;
     }
     
@@ -531,6 +530,10 @@ DO ask specific questions like "What is your expected read/write ratio?" or "Wha
 
   // Get missing fields with explanations
   const missingFields = getMissingFieldsWithExplanations(context.currentStepInfo || {}, context.step);
+  
+  // Add tracking for repeated insufficient answers
+  const previouslyAskedFields = context.previouslyAskedFields || {};
+  const attemptCounts = context.attemptCounts || {};
   
   // Add conversation context with focus on ALL missing fields
   messages.push({ 
@@ -544,8 +547,10 @@ Previous question: ${context.previousQuestion || 'None'}
 MISSING INFORMATION (COLLECT ALL):
 ${missingFields.length > 0 ? 
   missingFields.map(field => 
-    `- ${field.field}: ${field.explanation}\n  WHY IT'S IMPORTANT: ${field.importance}`
-  ).join('\n\n') : 
+    `- ${field.field}: ${field.explanation}
+  WHY IT'S IMPORTANT: ${field.importance}
+  PREVIOUSLY ASKED: ${previouslyAskedFields[field.field] ? 'Yes, ' + attemptCounts[field.field] + ' times' : 'No'}`
+  ).join('\n') : 
   'All required fields have been collected for this step.'}
 
 Information already collected for this step:
@@ -554,17 +559,34 @@ ${JSON.stringify(context.currentStepInfo, null, 2)}
 Complete collected information from all steps:
 ${JSON.stringify(context.allCollectedInfo, null, 2)}
 
+CONVERSATION HISTORY (MAINTAIN CONTINUITY):
+${context.previousMessages ? context.previousMessages.map(msg => 
+  `${msg.sender === 'user' ? 'User' : 'Assistant'}: ${msg.content}`
+).join('\n') : 'No previous messages'}
+
 User's latest response: ${userMessage}
 
 YOUR TASK:
-1. FIRST, carefully analyze the user's response to extract ANY information for the missing fields
-2. UPDATE the currentStepInfo with ALL information you can extract from the user's response
-3. NEVER discard information the user has already provided - only add or update
-4. Ask DIRECT questions about ALL remaining missing fields
-5. For each question, explain what the information means and why it's important
-6. Provide examples of possible answers to guide the user
-7. DO NOT ask open-ended exploratory questions - focus on collecting specific missing data
-8. Structure your response with clear headings for each missing field`
+1. FIRST, determine if the user is asking a specific question (not about missing information). If so, answer it directly and then continue with information gathering.
+2. SECOND, carefully analyze the user's response to extract ANY information for the missing fields.
+3. UPDATE the currentStepInfo with ALL information you can extract from the user's response.
+4. NEVER discard information the user has already provided - only add or update.
+5. For ALL remaining missing fields, create a STRUCTURED, NUMBERED LIST of specific questions.
+6. For EACH missing field:
+   - Explain what the information means in simple terms
+   - Provide 2-3 CONCRETE EXAMPLES of possible answers
+   - Explain why this information matters for their data model
+   - IF this field has been asked before and received insufficient answers, provide MORE DETAILED guidance and examples
+7. Format your response with clear headings and bullet points for readability.
+8. End with a summary of what information is still needed.
+
+IMPORTANT RULES:
+- ONLY mention the CURRENT step. NEVER discuss next steps until the current step is completed.
+- NEVER say "Thank you for providing all the necessary information" unless the current step is actually completed.
+- NEVER say "We'll now continue with the next step" unless the current step is completed.
+- ONLY list missing fields from the CURRENT step, not from future steps.
+- Keep your response focused ONLY on the current step (${context.step}).
+- Remove any extra line breaks in your formatting.`
   });
 
   messages.push({ role: 'user', content: userMessage });
@@ -587,34 +609,177 @@ YOUR TASK:
   // Check if all required fields are completed
   response.completed = validateStepCompletion(response.updatedInfo, context.step) === true;
   
-  console.log('response', response);
-  // Add completion message if the step is now completed
-  if (response.completed) {
-    const nextStep = getNextStep(context.step);
-    response.message = `Thank you for providing all the necessary information for this step! ${
-      nextStep ? `We'll now continue with the ${formatStepName(nextStep)} step.` : 
-      "We've completed all the required information gathering steps!"
-    }
-    
-${response.message}`;
-  } else {
+  // Update attempt counts for tracking repeated questions
+  const updatedAttemptCounts = {...attemptCounts};
+  const updatedPreviouslyAskedFields = {...previouslyAskedFields};
+  
+  if (!response.completed) {
     // If not completed, make sure the follow-up question focuses on ALL missing fields
     const remainingMissingFields = getMissingFieldsWithExplanations(response.updatedInfo, context.step);
     
+    remainingMissingFields.forEach(field => {
+      updatedPreviouslyAskedFields[field.field] = true;
+      updatedAttemptCounts[field.field] = (updatedAttemptCounts[field.field] || 0) + 1;
+    });
+    
+    // Store these for the next interaction
+    response.attemptCounts = updatedAttemptCounts;
+    response.previouslyAskedFields = updatedPreviouslyAskedFields;
+    
     if (remainingMissingFields.length > 0) {
       // Create a comprehensive follow-up question covering ALL missing fields
-      let followUpQuestion = "To complete your data model, I need information about ALL of the following:\n\n";
+      let followUpQuestion = "## Information Still Needed\nTo complete your data model, I need information about the following:";
       
       remainingMissingFields.forEach((field, index) => {
-        followUpQuestion += `### ${index + 1}. ${field.field.split('.').pop()}\n`;
-        followUpQuestion += `**What it is**: ${field.explanation}\n`;
-        followUpQuestion += `**Why it matters**: ${field.importance}\n\n`;
+        const attemptCount = updatedAttemptCounts[field.field] || 1;
+        followUpQuestion += `\n### ${index + 1}. ${field.field.split('.').pop()}`;
+        followUpQuestion += `\n**What it is**: ${field.explanation}`;
+        followUpQuestion += `\n**Why it matters**: ${field.importance}`;
+        
+        // Add examples based on field type - with increasing detail for repeated questions
+        followUpQuestion += `\n**Examples**:`;
+        
+        // Provide more detailed guidance for fields that have been asked multiple times
+        if (attemptCount > 1) {
+          followUpQuestion += `\n*I notice we're still working on this information. Let me provide more specific guidance:*`;
+        }
+        
+        switch(field.field) {
+          case 'description':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease include:`;
+              followUpQuestion += `\n- The main purpose of your application`;
+              followUpQuestion += `\n- 2-3 key features that make it unique`;
+              followUpQuestion += `\n- The problem it solves for users`;
+              followUpQuestion += `\n\nFor example:`;
+            }
+            followUpQuestion += `\n- "An e-commerce platform for selling handmade crafts with user ratings and reviews. It connects artisans directly with buyers and handles secure payments and shipping logistics."`;
+            followUpQuestion += `\n- "A patient management system for dental clinics with appointment scheduling, treatment history tracking, and insurance claim processing."`;
+            break;
+          case 'industry':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease be specific about:`;
+              followUpQuestion += `\n- The primary industry sector`;
+              followUpQuestion += `\n- Any specialized sub-sector`;
+              followUpQuestion += `\n- Whether it's B2B, B2C, or both`;
+              followUpQuestion += `\n\nFor example:`;
+            }
+            followUpQuestion += `\n- "Healthcare - specifically outpatient dental services with insurance integration"`;
+            followUpQuestion += `\n- "E-commerce - focusing on B2C marketplace for handcrafted goods"`;
+            followUpQuestion += `\n- "FinTech - personal budgeting and investment tracking for retail consumers"`;
+            break;
+          case 'userTypes':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease list all user types and their roles in your system.`;
+              followUpQuestion += `\nFor example:`;
+            }
+            followUpQuestion += `\n- "Admin, Customer, Vendor, Support Staff"`;
+            followUpQuestion += `\n- "Doctor, Patient, Receptionist, Insurance Agent"`;
+            break;
+          case 'keyFeatures':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease describe the main features and workflows of your application.`;
+              followUpQuestion += `\nFor example:`;
+            }
+            followUpQuestion += `\n- "User authentication, product catalog, shopping cart, payment processing"`;
+            followUpQuestion += `\n- "Appointment scheduling, medical records, billing, prescription management"`;
+            break;
+          case 'dataAccess.accessPatterns':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease describe how users will access and interact with data in your system.`;
+              followUpQuestion += `\nFor example:`;
+            }
+            followUpQuestion += `\n- "Users frequently search products by category, price range, and ratings"`;
+            followUpQuestion += `\n- "Doctors need to access patient history sorted by date and condition"`;
+            break;
+          case 'dataAccess.queryPattern':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease describe the type of queries your system will primarily use.`;
+              followUpQuestion += `\nFor example:`;
+            }
+            followUpQuestion += `\n- "Simple lookups - mostly retrieving individual records by ID"`;
+            followUpQuestion += `\n- "Heavy joins - frequently combining data from multiple entities"`;
+            followUpQuestion += `\n- "Graph traversal - following complex relationships between entities"`;
+            break;
+          case 'frequentQueries':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease describe common data retrieval patterns in your application.`;
+              followUpQuestion += `\nFor example:`;
+            }
+            followUpQuestion += `\n- "Find all orders for a specific customer within a date range"`;
+            followUpQuestion += `\n- "Retrieve all products in a category with stock below threshold"`;
+            break;
+          case 'criticalJoins':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease describe joins that happen often or with large datasets.`;
+              followUpQuestion += `\nFor example:`;
+            }
+            followUpQuestion += `\n- "Orders joined with OrderItems, Products, and Customer data"`;
+            followUpQuestion += `\n- "Patient records joined with appointments, treatments, and billing"`;
+            break;
+          case 'writeOperations':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease describe important create/update/delete operations in your system.`;
+              followUpQuestion += `\nFor example:`;
+            }
+            followUpQuestion += `\n- "Creating new orders, updating inventory levels"`;
+            followUpQuestion += `\n- "Adding patient notes, updating appointment status"`;
+            break;
+          case 'readWriteRatio':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease describe whether your system is read-heavy, write-heavy, or balanced.`;
+              followUpQuestion += `\nFor example:`;
+            }
+            followUpQuestion += `\n- "Read-heavy (90% reads, 10% writes)"`;
+            followUpQuestion += `\n- "Balanced (50% reads, 50% writes)"`;
+            followUpQuestion += `\n- "Write-heavy (30% reads, 70% writes)"`;
+            break;
+          case 'growthExpectations':
+            if (attemptCount > 1) {
+              followUpQuestion += `\nPlease describe how you expect your data volume to increase over time.`;
+              followUpQuestion += `\nFor example:`;
+            }
+            followUpQuestion += `\n- "Steady growth to 10,000 users and 1 million records within a year"`;
+            followUpQuestion += `\n- "Rapid scaling to handle 100,000+ users and 10+ million records"`;
+            break;
+          default:
+            if (attemptCount > 1) {
+              followUpQuestion += `\n- Please provide more specific details for this field. Even partial information helps.`;
+            } else {
+              followUpQuestion += `\n- Please provide specific details for this field`;
+            }
+        }
       });
       
-      followUpQuestion += "Please provide information for as many of these items as possible. Even partial information helps build your data model.";
+      // Add more encouragement for repeated attempts
+      if (Object.values(updatedAttemptCounts).some(count => count > 1)) {
+        followUpQuestion += `\n**Tip:** Even partial or approximate information is valuable. If you're unsure about exact details, feel free to provide your best estimate or current thinking.`;
+      }
+      
+      followUpQuestion += `\nYou can answer for multiple items at once. Every piece of information helps build a better data model for your needs.`;
       
       response.followUpQuestion = followUpQuestion;
     }
+  } else {
+    // If completed, add completion message with next step or final message
+    const nextStep = getNextStep(context.step);
+    
+    // For nonFunctionalRequirements step, determine the suggested data model
+    if (context.step === 'nonFunctionalRequirements' && !response.updatedInfo.suggestedDataModel) {
+      // Determine the suggested data model based on collected information
+      response.updatedInfo.suggestedDataModel = determineSuggestedDataModel(
+        response.updatedInfo,
+        context.allCollectedInfo
+      );
+      
+      // Add explanation about the suggested data model to the message
+      response.message = `Based on your requirements, I recommend using a **${response.updatedInfo.suggestedDataModel}** database for your project. ${response.message}`;
+    }
+    
+    response.message = `Thank you for providing all the necessary information for the ${formatStepName(context.step)} step!${
+      nextStep ? ` We'll now continue with the ${formatStepName(nextStep)} step.` : 
+      " We've completed all the required information gathering steps!"
+    } ${response.message}`;
   }
   
   return response;
@@ -685,7 +850,7 @@ function validateStepCompletion(stepInfo, step) {
              stepInfo.dataAccess.queryPattern !== null;
       
     case 'nonFunctionalRequirements':
-      // Check if all non-functional requirement fields are filled
+      // Check if all non-functional requirement fields are filled (except suggestedDataModel)
       return stepInfo.frequentQueries && 
              stepInfo.frequentQueries.length > 0 && 
              stepInfo.criticalJoins && 
@@ -693,8 +858,7 @@ function validateStepCompletion(stepInfo, step) {
              stepInfo.writeOperations && 
              stepInfo.writeOperations.length > 0 && 
              stepInfo.readWriteRatio !== null && 
-             stepInfo.growthExpectations !== null && 
-             stepInfo.suggestedDataModel !== null;
+             stepInfo.growthExpectations !== null;
       
     default:
       return false;
@@ -1074,7 +1238,16 @@ For field types:
 - For enum fields, provide the possible values in the "enumValues" array
 - For relationships to other entities, use the entity name as the type
 - For relationships that reference a specific field, use "EntityName.fieldName" format
-- For array/collection relationships, set "isArray" to true`;
+- For array/collection relationships, set "isArray" to true
+
+Design Principles:
+1. Every entity must have an ID field as primary key
+2. Use appropriate indexes for frequently queried fields
+3. Consider query patterns when designing relations
+4. Add proper constraints based on business rules
+5. Use enum types for fields with fixed value sets
+6. Add default values where appropriate
+7. Consider data validation and integrity requirements`;
 
     const jsonSchema = {
       type: 'object',
@@ -1287,4 +1460,71 @@ ${response.changesApplied.map(change => `- ${change}`).join('\n')}
     }
     throw new HttpError(500, 'Failed to modify data model schema');
   }
+}
+
+// Add a new function to determine the suggested data model
+function determineSuggestedDataModel(nonFunctionalRequirements, allCollectedInfo) {
+  // Default to SQL as a safe choice
+  let suggestedModel = "SQL";
+  let score = {
+    sql: 0,
+    nosql: 0,
+    graphdb: 0
+  };
+  
+  // Analyze read/write ratio
+  if (nonFunctionalRequirements.readWriteRatio) {
+    const ratio = nonFunctionalRequirements.readWriteRatio.toLowerCase();
+    if (ratio.includes('read-heavy')) {
+      score.sql += 1;
+      score.nosql += 1;
+    } else if (ratio.includes('write-heavy')) {
+      score.nosql += 2;
+    }
+  }
+  
+  // Analyze critical joins
+  if (nonFunctionalRequirements.criticalJoins && nonFunctionalRequirements.criticalJoins.length > 0) {
+    const joinCount = nonFunctionalRequirements.criticalJoins.length;
+    if (joinCount >= 3) {
+      score.sql += 2;
+      score.graphdb += 1;
+    }
+  }
+  
+  // Analyze growth expectations
+  if (nonFunctionalRequirements.growthExpectations) {
+    const growth = nonFunctionalRequirements.growthExpectations.toLowerCase();
+    if (growth.includes('rapid') || growth.includes('high') || 
+        growth.includes('million') || growth.includes('scale')) {
+      score.nosql += 2;
+    }
+  }
+  
+  // Analyze query patterns from functional requirements
+  if (allCollectedInfo && allCollectedInfo.functionalRequirements && 
+      allCollectedInfo.functionalRequirements.dataAccess && 
+      allCollectedInfo.functionalRequirements.dataAccess.queryPattern) {
+    
+    const queryPattern = allCollectedInfo.functionalRequirements.dataAccess.queryPattern.toLowerCase();
+    
+    if (queryPattern.includes('simple lookup')) {
+      score.nosql += 1;
+    } else if (queryPattern.includes('heavy join')) {
+      score.sql += 2;
+    } else if (queryPattern.includes('graph') || queryPattern.includes('traversal')) {
+      score.graphdb += 3;
+    }
+  }
+  
+  // Determine the highest score
+  if (score.nosql > score.sql && score.nosql > score.graphdb) {
+    suggestedModel = "NoSQL";
+  } else if (score.graphdb > score.sql && score.graphdb > score.nosql) {
+    suggestedModel = "GraphDB";
+  } else {
+    suggestedModel = "SQL";
+  }
+  
+  return suggestedModel;
 }
