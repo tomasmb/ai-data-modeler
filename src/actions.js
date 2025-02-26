@@ -814,16 +814,56 @@ function formatStepName(step) {
 
 // Helper function to identify missing or incomplete fields
 function identifyMissingFields(stepInfo) {
+  if (!stepInfo) return [];
+  
   const missingFields = [];
   
-  switch(true) {
-    case !stepInfo.type || stepInfo.type === null:
-      missingFields.push('project type');
-      break;
-    case !stepInfo.description || stepInfo.description === null:
-      missingFields.push('project description');
-      break;
-    // Add more cases based on the step
+  // Check fields based on the step structure
+  if (stepInfo.hasOwnProperty('description') && (!stepInfo.description || stepInfo.description === null)) {
+    missingFields.push('project description');
+  }
+  
+  if (stepInfo.hasOwnProperty('industry') && (!stepInfo.industry || stepInfo.industry === null)) {
+    missingFields.push('industry');
+  }
+  
+  if (stepInfo.hasOwnProperty('userTypes') && (!stepInfo.userTypes || !stepInfo.userTypes.length)) {
+    missingFields.push('user types');
+  }
+  
+  if (stepInfo.hasOwnProperty('keyFeatures') && (!stepInfo.keyFeatures || !stepInfo.keyFeatures.length)) {
+    missingFields.push('key features');
+  }
+  
+  // Handle nested dataAccess fields with user-friendly names
+  if (stepInfo.hasOwnProperty('dataAccess')) {
+    if (!stepInfo.dataAccess || !stepInfo.dataAccess.accessPatterns || !stepInfo.dataAccess.accessPatterns.length) {
+      missingFields.push('access patterns'); // User-friendly name
+    }
+    
+    if (!stepInfo.dataAccess || stepInfo.dataAccess.queryPattern === null || stepInfo.dataAccess.queryPattern === undefined) {
+      missingFields.push('query pattern');
+    }
+  }
+  
+  if (stepInfo.hasOwnProperty('frequentQueries') && (!stepInfo.frequentQueries || !stepInfo.frequentQueries.length)) {
+    missingFields.push('frequent queries');
+  }
+  
+  if (stepInfo.hasOwnProperty('criticalJoins') && (!stepInfo.criticalJoins || !stepInfo.criticalJoins.length)) {
+    missingFields.push('critical joins');
+  }
+  
+  if (stepInfo.hasOwnProperty('writeOperations') && (!stepInfo.writeOperations || !stepInfo.writeOperations.length)) {
+    missingFields.push('write operations');
+  }
+  
+  if (stepInfo.hasOwnProperty('readWriteRatio') && (!stepInfo.readWriteRatio || stepInfo.readWriteRatio === null)) {
+    missingFields.push('read/write ratio');
+  }
+  
+  if (stepInfo.hasOwnProperty('growthExpectations') && (!stepInfo.growthExpectations || stepInfo.growthExpectations === null)) {
+    missingFields.push('growth expectations');
   }
   
   return missingFields;
