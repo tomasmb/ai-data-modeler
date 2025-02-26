@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements, generateDataModel, saveDataModelSchema, askDataModelQuestion } from 'wasp/client/operations';
 import ModelInfoModal from './ModelInfoModal';
 
-const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
+const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchema }) => {
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
@@ -281,47 +281,6 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     }
   };
 
-  // Similarly update the handleTestGeneration function
-  const handleTestGeneration = async () => {
-    setIsGenerating(true);
-    try {
-      // Generate the schema
-      const result = await generateDataModel({
-        requirements: collectedInfo
-      });
-
-      // Save the generated schema to the database
-      await saveDataModelSchema({
-        dataModelId,
-        schema: result.schema
-      });
-
-      // Update the CodeEditor via parent component
-      onSchemaGenerated(result.schema);
-      
-      // Add the explanation as a system message in the chat
-      const explanationMessage = {
-        sender: 'ai',
-        content: `Data Model Generated Successfully\n\n${result.explanation}`,
-        timestamp: new Date().toISOString()
-      };
-      setChatHistory(prev => [...prev, explanationMessage]);
-      
-    } catch (error) {
-      console.error('Error generating schema:', error);
-      
-      // Add error message to chat
-      const errorMessage = {
-        sender: 'ai',
-        content: `❌ Error generating schema: ${error.message || 'An unknown error occurred'}`,
-        timestamp: new Date().toISOString()
-      };
-      setChatHistory(prev => [...prev, errorMessage]);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
   // Modify the handleSend function to show loading state during modifications
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
@@ -356,90 +315,116 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     }, 0);
 
     try {
-      const response = await sendChatMessage({
-        dataModelId,
-        content: message,
-        context: {
-          phase,
-          step: currentStep,
-          currentStepInfo: collectedInfo[currentStep] || {},
-          allCollectedInfo: collectedInfo,
-          previousQuestion,
-          // Pass the tracking information
-          previouslyAskedFields,
-          attemptCounts
-        }
-      });
-
-      // Update the tracking information from the response
-      if (response.previouslyAskedFields) {
-        setPreviouslyAskedFields(response.previouslyAskedFields);
-      }
-      
-      if (response.attemptCounts) {
-        setAttemptCounts(response.attemptCounts);
-      }
-
-      // Update collected info with AI's response
-      if (response.updatedInfo) {          
-        setCollectedInfo(prevState => {
-          // Create a deep copy of the entire state
-          const newState = JSON.parse(JSON.stringify(prevState));
-          
-          // Create the updated step info
-          const updatedStepInfo = { ...newState[currentStep] };
-          
-          // Only update properties that aren't null
-          Object.entries(response.updatedInfo).forEach(([key, value]) => {
-            if (value !== null) {
-              updatedStepInfo[key] = value;
-            }
-          });
-          
-          // Always update the completed flag
-          updatedStepInfo.completed = response.completed;
-          
-          // Replace the step in the new state
-          newState[currentStep] = updatedStepInfo;
-          
-          // Return a completely new object
-          return { ...newState };
+      // Use different API call based on phase
+      if (phase === 'free') {
+        // Use askDataModelQuestion for free phase
+        const response = await askDataModelQuestion({
+          content: userMessage.content,
+          dataModelId,
+          dataModelSchema: modelDataSchema,
         });
         
-        // Store the follow-up question for next context
-        setPreviousQuestion(response.followUpQuestion);
-
-        // Handle step completion and phase transition
-        if (response.completed === true) {
-          const nextStep = (() => {
-            switch (currentStep) {
-              case 'projectDetails':
-                return 'functionalRequirements';
-              case 'functionalRequirements':
-                return 'nonFunctionalRequirements';
-              case 'nonFunctionalRequirements':
-                return null;
-              default:
-                return null;
-            }
-          })();
-
-          if (nextStep) {
-            setCurrentStep(nextStep);
-            await initializeStep(nextStep);
-          } else {
-            // No need to save requirements again, just transition to the next phase
-            try {
-              await handlePhaseTransition();
-            } catch (error) {
-              console.error('Error in phase transition:', error);
-            }
-          }
-          setPreviousQuestion(null);
+        // Add AI response to chat history
+        if (response.aiMessage) {
+          const aiMessage = {
+            content: response.aiMessage.content,
+            sender: 'ai',
+            timestamp: response.aiMessage.timestamp || new Date().toISOString()
+          };
+          
+          // Update local chat history with AI response
+          setChatHistory(prev => [...prev, aiMessage]);
         }
+        
+        // No need to update collected info or handle step transitions in free phase
+        inputRef.current?.focus();
+      } else {
+        // Use sendChatMessage for structured phase
+        const response = await sendChatMessage({
+          dataModelId,
+          content: message,
+          context: {
+            phase,
+            step: currentStep,
+            currentStepInfo: collectedInfo[currentStep] || {},
+            allCollectedInfo: collectedInfo,
+            previousQuestion,
+            // Pass the tracking information
+            previouslyAskedFields,
+            attemptCounts
+          }
+        });
+
+        // Update the tracking information from the response
+        if (response.previouslyAskedFields) {
+          setPreviouslyAskedFields(response.previouslyAskedFields);
+        }
+        
+        if (response.attemptCounts) {
+          setAttemptCounts(response.attemptCounts);
+        }
+
+        // Update collected info with AI's response
+        if (response.updatedInfo) {          
+          setCollectedInfo(prevState => {
+            // Create a deep copy of the entire state
+            const newState = JSON.parse(JSON.stringify(prevState));
+            
+            // Create the updated step info
+            const updatedStepInfo = { ...newState[currentStep] };
+            
+            // Only update properties that aren't null
+            Object.entries(response.updatedInfo).forEach(([key, value]) => {
+              if (value !== null) {
+                updatedStepInfo[key] = value;
+              }
+            });
+            
+            // Always update the completed flag
+            updatedStepInfo.completed = response.completed;
+            
+            // Replace the step in the new state
+            newState[currentStep] = updatedStepInfo;
+            
+            // Return a completely new object
+            return { ...newState };
+          });
+          
+          // Store the follow-up question for next context
+          setPreviousQuestion(response.followUpQuestion);
+
+          // Handle step completion and phase transition
+          if (response.completed === true) {
+            const nextStep = (() => {
+              switch (currentStep) {
+                case 'projectDetails':
+                  return 'functionalRequirements';
+                case 'functionalRequirements':
+                  return 'nonFunctionalRequirements';
+                case 'nonFunctionalRequirements':
+                  return null;
+                default:
+                  return null;
+              }
+            })();
+
+            if (nextStep) {
+              setCurrentStep(nextStep);
+              await initializeStep(nextStep);
+            } else {
+              // No need to save requirements again, just transition to the next phase
+              try {
+                await handlePhaseTransition();
+              } catch (error) {
+                console.error('Error in phase transition:', error);
+              }
+            }
+            setPreviousQuestion(null);
+          }
+        }
+        
+        inputRef.current?.focus();
       }
-      
-      inputRef.current?.focus();
     } catch (error) {
       console.error('Error sending message:', error);
       
@@ -452,11 +437,6 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
       
       // Update local chat history with the error message
       setChatHistory(prev => [...prev, errorMessage]);
-      
-      // Make sure to hide the generating overlay if there was an error
-      if (chatMode === 'modifications') {
-        setIsGenerating(false);
-      }
     } finally {
       setIsLoading(false);
     }
@@ -471,19 +451,19 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
 
   // Get step description for the placeholder
   const getStepDescription = () => {
-    switch (currentStep) {
-      case 'projectDetails':
-        return 'Share details about your project...';
-      case 'functionalRequirements':
-        return 'Describe what your system needs to do...';
-      case 'nonFunctionalRequirements':
-        return 'Tell me about your technical requirements...';
-      default:
-        return phase === 'structured' 
-          ? 'Type your response...'
-          : chatMode === 'questions'
-            ? 'Ask a question about the data model...'
-            : 'Describe the changes you want to make...';
+    if (phase === 'free') {
+      return 'Ask a question about the data model...';
+    } else {
+      switch (currentStep) {
+        case 'projectDetails':
+          return 'Share details about your project...';
+        case 'functionalRequirements':
+          return 'Describe what your system needs to do...';
+        case 'nonFunctionalRequirements':
+          return 'Tell me about your technical requirements...';
+        default:
+          return 'Type your response...';
+      }
     }
   };
 
@@ -586,13 +566,6 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
               >
                 View Requirements
               </button>
-              <button
-                onClick={handleTestGeneration}
-                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors text-sm border border-gray-200"
-                disabled={isGenerating}
-              >
-                {isGenerating ? 'Generating...' : 'Test Generate'}
-              </button>
               <div className='h-2 w-24 bg-gray-200 rounded-full overflow-hidden ml-2'>
                 <div 
                   className='h-full bg-blue-500 transition-all duration-300'
@@ -606,29 +579,9 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
             <div className='flex gap-2'>
               <button
                 onClick={() => setShowInfoModal(true)}
-                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors text-sm border border-gray-200 mr-2"
+                className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors text-sm border border-gray-200"
               >
                 View Requirements
-              </button>
-              <button
-                className={`text-sm px-3 py-1 rounded-full transition-colors ${
-                  chatMode === 'questions'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                onClick={() => setChatMode('questions')}
-              >
-                Ask Questions
-              </button>
-              <button
-                className={`text-sm px-3 py-1 rounded-full transition-colors ${
-                  chatMode === 'modifications'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-                onClick={() => setChatMode('modifications')}
-              >
-                Request Changes
               </button>
             </div>
           )}

@@ -159,6 +159,7 @@ const DataModelPage = () => {
           dataModelId={id} 
           onSchemaGenerated={handleSchemaGenerated}
           modelData={model}
+          modelDataSchema={modelData.schema}
         />
         <CodeEditor
           dataModelId={id}
