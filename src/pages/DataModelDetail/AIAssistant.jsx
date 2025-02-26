@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements, generateDataModel, saveDataModelSchema, askDataModelQuestion } from 'wasp/client/operations';
 import ModelInfoModal from './ModelInfoModal';
+import { XMarkIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon } from '@heroicons/react/24/outline';
 
 const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchema }) => {
   const [message, setMessage] = useState('');
@@ -74,6 +75,9 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
   // Add new state for tracking repeated questions
   const [previouslyAskedFields, setPreviouslyAskedFields] = useState({});
   const [attemptCounts, setAttemptCounts] = useState({});
+
+  // Add new state for fullscreen mode
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   // Add effect to save initializedSteps to localStorage when it changes
   useEffect(() => {
@@ -540,8 +544,15 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
     // Note: We don't need to explicitly save to database here since the useEffect will handle it
   };
 
+  // Toggle fullscreen mode
+  const toggleFullScreen = () => {
+    setIsFullScreen(!isFullScreen);
+  };
+
   return (
-    <div className='w-full md:w-1/2 bg-white rounded-lg shadow-lg p-4 flex flex-col'>
+    <div className={`bg-white rounded-lg shadow-lg p-4 flex flex-col ${
+      isFullScreen ? 'fixed inset-0 z-50' : 'w-full'
+    }`}>
       {/* Add the generating overlay as a conditional element inside the component */}
       {isGenerating && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -557,7 +568,31 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
       
       <div className='flex items-center justify-between mb-4'>
         <h2 className='text-xl font-semibold'>AI Assistant</h2>
-        <div className='flex-shrink-0'>
+        <div className='flex-shrink-0 flex items-center'>
+          {/* Add fullscreen toggle button */}
+          <button
+            onClick={toggleFullScreen}
+            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors mr-2"
+            title={isFullScreen ? "Exit Full Screen" : "Full Screen"}
+          >
+            {isFullScreen ? (
+              <ArrowsPointingInIcon className="h-5 w-5" />
+            ) : (
+              <ArrowsPointingOutIcon className="h-5 w-5" />
+            )}
+          </button>
+          
+          {/* Close button only shown in fullscreen mode */}
+          {isFullScreen && (
+            <button
+              onClick={toggleFullScreen}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors mr-2"
+              title="Close"
+            >
+              <XMarkIcon className="h-5 w-5" />
+            </button>
+          )}
+          
           {phase === 'structured' && (
             <div className='flex items-center gap-2'>
               <button
@@ -588,7 +623,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
         </div>
       </div>
       
-      <div className='flex-1 overflow-hidden relative'>
+      <div className={`flex-1 overflow-hidden relative ${isFullScreen ? 'h-[calc(100vh-180px)]' : ''}`}>
         <div className='absolute inset-0 overflow-y-auto space-y-4 p-2'>
           {chatHistory.map((msg, index) => (
             <div

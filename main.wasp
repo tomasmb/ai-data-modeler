@@ -2,7 +2,7 @@ app aiDataModeler {
   wasp: {
     version: "^0.16.2"
   },
-  title: "aiDataModeler",
+  title: "AI Data Modeler",
   client: {
     rootComponent: import { Layout } from "@src/Layout.jsx",
   },
