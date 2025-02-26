@@ -146,9 +146,14 @@ const ModelInfoModal = ({ isOpen, onClose, collectedInfo, onUpdate }) => {
   };
 
   const renderNestedObject = (section, obj, path = '') => {
-    return Object.entries(obj).map(([key, value]) => {
+    // Get the keys in the original order
+    const objKeys = Object.keys(obj);
+    
+    return objKeys.map(key => {
       // Skip the 'completed' flag
       if (key === 'completed') return null;
+      
+      const value = obj[key];
       
       // If it's an object but not an array, render it as a nested section
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -170,6 +175,9 @@ const ModelInfoModal = ({ isOpen, onClose, collectedInfo, onUpdate }) => {
   };
 
   const renderSection = (section, sectionData) => {
+    // Get the keys in the original order
+    const sectionKeys = Object.keys(sectionData);
+    
     return (
       <div className="bg-gray-50 rounded-lg p-6">
         <h3 className="text-xl font-semibold text-gray-800 mb-4">
@@ -182,9 +190,11 @@ const ModelInfoModal = ({ isOpen, onClose, collectedInfo, onUpdate }) => {
         </h3>
         
         <div className="space-y-2">
-          {Object.entries(sectionData).map(([key, value]) => {
+          {sectionKeys.map(key => {
             // Skip the 'completed' flag in the main rendering
             if (key === 'completed') return null;
+            
+            const value = sectionData[key];
             
             // If it's an object but not an array, render it as a nested section
             if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -227,20 +237,21 @@ const ModelInfoModal = ({ isOpen, onClose, collectedInfo, onUpdate }) => {
         
         <div className="flex-1 overflow-y-auto p-6">
           <div className="space-y-8">
-            {collectedInfo.projectDetails?.suggestedDataModel && (
+            {collectedInfo.nonFunctionalRequirements?.suggestedDataModel && (
               <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-md mb-6">
                 <h3 className="text-xl font-semibold text-blue-800 mb-2">Suggested Data Model</h3>
                 <div className="prose max-w-none">
                   <pre className="bg-white p-3 rounded shadow-sm overflow-x-auto">
-                    {collectedInfo.projectDetails.suggestedDataModel}
+                    {collectedInfo.nonFunctionalRequirements.suggestedDataModel}
                   </pre>
                 </div>
               </div>
             )}
             
-            {Object.entries(collectedInfo).map(([section, sectionData]) => (
+            {/* Render sections in the original order */}
+            {Object.keys(collectedInfo).map(section => (
               <div key={section}>
-                {renderSection(section, sectionData)}
+                {renderSection(section, collectedInfo[section])}
               </div>
             ))}
           </div>

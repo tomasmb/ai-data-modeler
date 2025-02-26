@@ -10,88 +10,30 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
   const [phase, setPhase] = useState('structured'); // 'structured' or 'free'
   const [currentStep, setCurrentStep] = useState('projectDetails'); // 'projectDetails', 'functionalRequirements', 'nonFunctionalRequirements'
   const [chatMode, setChatMode] = useState('questions'); // 'questions' or 'modifications'
-  const [generationExplanation, setGenerationExplanation] = useState('');
-  const [generationError, setGenerationError] = useState('');
   const [collectedInfo, setCollectedInfo] = useState(() => {
     const saved = localStorage.getItem(`collectedInfo-${dataModelId}`);
     return saved ? JSON.parse(saved) : {
       projectDetails: {
-        type: null, 
         description: null,
         industry: null,
-        targetMarket: null,
-        securityRequirements: null, 
-        suggestedDataModel: null, // AI-driven recommendation (SQL, NoSQL, GraphDB)
         completed: false
       },
       functionalRequirements: {
-        userStories: [],
         userTypes: [],
         keyFeatures: [],
-        businessProcesses: [],
-        integrations: [],
         dataAccess: {
           accessPatterns: [],
-          searchRequirements: [],
-          filteringNeeds: [],
-          queryPattern: null, // Updated: "simple lookups", "heavy joins", "graph traversal"
+          queryPattern: null, // "simple lookups", "heavy joins", "graph traversal"
         },
-        reportingNeeds: [],
         completed: false
       },
       nonFunctionalRequirements: {
-        dataOperations: {
-          heavyRead: {
-            entities: [],
-            frequency: null,
-            patterns: [],
-          },
-          heavyWrite: {
-            entities: [],
-            frequency: null,
-            patterns: [],
-          },
-          readWriteRatio: null,
-          consistencyRequirements: [], // e.g., "strong", "eventual", "custom"
-          schemaFlexibility: null, // "low", "medium", "high"
-        },
-        traffic: {
-          peakConcurrentUsers: null,
-          averageDailyUsers: null,
-          growthProjection: null,
-          expectedApiRequestsPerSecond: null, // Added: API request scaling estimates
-          geographicDistribution: null,
-          peakHours: null,
-          seasonality: null, // Added: Handling spikes due to seasonal trends
-        },
-        dataVolume: {
-          initialSize: null,
-          growthRate: null,
-          maxRecordSize: null, // Updated: Clarified as maximum size per record
-          dataRetentionRequirements: null,
-          archivalNeeds: null,
-          estimatedHistoricalData: null, // Added: Useful for ML-based forecasting
-          storageType: null, // Added: Structured (RDBMS) vs. Unstructured (Object Storage)
-        },
-        performance: {
-          expectedLatency: null,
-          criticalOperations: [],
-          slaRequirements: null,
-          cacheableEntities: [],
-        },
-        availability: {
-          upTimeRequirements: null,
-          backupRequirements: null,
-          disasterRecovery: null,
-          multiRegion: null,
-        },
-        compliance: {
-          dataResidency: null,
-          auditRequirements: null,
-          dataPrivacy: null,
-          encryptionAtRest: null, // Ensuring database security compliance
-          encryptionInTransit: null, // Security for API calls
-        },
+        frequentQueries: [], // Common data retrieval patterns
+        criticalJoins: [], // Joins that happen often or with large datasets
+        writeOperations: [], // Important create/update/delete operations
+        readWriteRatio: null, // "read-heavy", "write-heavy", "balanced"
+        growthExpectations: null, // How data volume will increase over time
+        suggestedDataModel: null, // AI recommendation (SQL, NoSQL, GraphDB)
         completed: false
       }
     };
@@ -188,20 +130,9 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
 
   // Handle step initialization
   const initializeStep = async (step) => {
+    console.log('initializing step', step);
     // Check if step is already initialized
     if (initializedSteps.has(step)) {
-      return;
-    }
-
-    // Check if there are any AI messages for this step in chat history
-    const stepHasMessages = chatHistory.some(msg => 
-      msg.sender === 'ai' && 
-      msg.metadata?.isInitialMessage && 
-      msg.metadata?.step === step
-    );
-
-    if (stepHasMessages) {
-      setInitializedSteps(prev => new Set([...prev, step]));
       return;
     }
 
@@ -383,6 +314,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
           setCollectedInfo(prev => ({
             ...prev,
             [currentStep]: {
+              ...prev[currentStep],
               ...response.updatedInfo,
               completed: response.completed
             }
