@@ -560,23 +560,21 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     // Note: We don't need to explicitly save to database here since the useEffect will handle it
   };
 
-  // Add the generating overlay
-  if (isGenerating) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white p-8 rounded-lg shadow-xl text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h3 className="text-xl font-semibold mb-2">Generating Data Model</h3>
-          <p className="text-gray-600">
-            Using AI to create the optimal data model based on your requirements...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className='w-full md:w-1/2 bg-white rounded-lg shadow-lg p-4 flex flex-col'>
+      {/* Add the generating overlay as a conditional element inside the component */}
+      {isGenerating && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-8 rounded-lg shadow-xl text-center">
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
+            <h3 className="text-xl font-semibold mb-2">Generating Data Model</h3>
+            <p className="text-gray-600">
+              Using AI to create the optimal data model based on your requirements...
+            </p>
+          </div>
+        </div>
+      )}
+      
       <div className='flex items-center justify-between mb-4'>
         <h2 className='text-xl font-semibold'>AI Assistant</h2>
         <div className='flex-shrink-0'>
