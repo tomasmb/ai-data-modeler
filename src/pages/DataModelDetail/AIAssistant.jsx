@@ -130,7 +130,6 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
 
   // Handle step initialization
   const initializeStep = async (step) => {
-    console.log('initializing step', step);
     // Check if step is already initialized
     if (initializedSteps.has(step)) {
       return;
@@ -197,9 +196,11 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
       };
       setChatHistory(prev => [...prev, explanationMessage]);
       
-      // Move to free phase
+      // Move to free phase and save it to localStorage BEFORE reloading
       setPhase('free');
+      localStorage.setItem(`phase-${dataModelId}`, 'free');
       setChatMode('questions');
+      localStorage.setItem(`chatMode-${dataModelId}`, 'questions');
 
       // Force a refresh of the page to get the latest schema
       window.location.reload();
@@ -310,16 +311,31 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
         });
         
         // Update collected info with AI's response
-        if (response.updatedInfo) {
-          setCollectedInfo(prev => ({
-            ...prev,
-            [currentStep]: {
-              ...prev[currentStep],
-              ...response.updatedInfo,
-              completed: response.completed
-            }
-          }));
-
+        if (response.updatedInfo) {          
+          setCollectedInfo(prevState => {
+            // Create a deep copy of the entire state
+            const newState = JSON.parse(JSON.stringify(prevState));
+            
+            // Create the updated step info
+            const updatedStepInfo = { ...newState[currentStep] };
+            
+            // Only update properties that aren't null
+            Object.entries(response.updatedInfo).forEach(([key, value]) => {
+              if (value !== null) {
+                updatedStepInfo[key] = value;
+              }
+            });
+            
+            // Always update the completed flag
+            updatedStepInfo.completed = response.completed;
+            
+            // Replace the step in the new state
+            newState[currentStep] = updatedStepInfo;
+            
+            // Return a completely new object
+            return { ...newState };
+          });
+          
           // Store the follow-up question for next context
           setPreviousQuestion(response.followUpQuestion);
 
@@ -514,7 +530,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
     // Note: We don't need to explicitly save to database here since the useEffect will handle it
   };
 
-  // Replace the existing useEffect for loading from localStorage with this:
+  // This useEffect loads from localStorage or modelData - only on mount
   useEffect(() => {
     if (modelData?.requirements) {
       setCollectedInfo(modelData.requirements);
@@ -529,7 +545,8 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData }) => {
         }
       }
     }
-  }, [dataModelId, modelData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run on mount
 
   // Add the generating overlay
   if (isGenerating) {

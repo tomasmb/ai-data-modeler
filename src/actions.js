@@ -182,67 +182,34 @@ function getDefaultStepQuestion(step) {
       return `🚀 Let's start by understanding your project!  
       
 To generate the best data model, I need some key details:  
-🔹 **What type of application are you building?** (e.g., SaaS, e-commerce, fintech, IoT, social platform).  
-🔹 **Give me a brief project description** (main features, business goals, what problem it solves).  
-🔹 **Which industry does it serve?** (e.g., healthcare, logistics, finance, gaming).  
-🔹 **Who is your target audience?** (e.g., consumers, businesses, enterprise users).  
-🔹 **Do you have any security or compliance requirements?** (e.g., GDPR, HIPAA, SOC 2, encryption).  
+🔹 **Project description**: Please provide a brief description of your project (main features, business goals, what problem it solves).  
+🔹 **Industry**: Which industry does your project serve? (e.g., healthcare, logistics, finance, gaming).  
 
-Let's gather these details so we can create an optimal data model!`;
+This information will help me create an optimal data model for your needs!`;
 
     case 'functionalRequirements':
-      return `📌 Now, let's define **how your system operates** so we can structure the data model effectively.  
+      return `📌 Now, let's define the functional requirements for your data model.  
 
-Tell me about:  
-🔹 **User roles & permissions** (e.g., Admin, Moderator, Regular User, API Client).  
-🔹 **Key features & workflows** (e.g., user signup, checkout, content posting).  
-🔹 **Business processes** (e.g., order fulfillment, fraud detection, recommendation systems).  
-🔹 **External integrations** (e.g., Stripe for payments, Salesforce for CRM).  
-🔹 **Data access patterns:**  
-  - Will users frequently search/filter data?  
-  - Will you have complex queries with joins?  
-  - Do you need relationship-based queries (e.g., social graphs)?  
-🔹 **Reporting & analytics needs:**  
-  - What kind of reports or dashboards will be needed?  
-  - How often will they be updated?  
+Please tell me about:  
+🔹 **User types**: What different types of users will interact with your system? (e.g., Admin, Customer, Vendor)  
+🔹 **Key features**: What are the main features and workflows of your application?  
+🔹 **Data access patterns**: 
+  - How will users typically access data in your system?
+  - What query pattern do you expect? ("simple lookups", "heavy joins", or "graph traversal")
 
-This will help structure the database to support your application's core logic.`;
+This will help structure the database to support your application's core functionality.`;
 
     case 'nonFunctionalRequirements':
-      return `⚙️ Now, let's refine the **technical constraints & scalability** of your data model.  
+      return `⚙️ Let's define the technical requirements for your data model.  
 
-Provide details on:  
-🔹 **Read vs. Write Operations:**  
-  - Will your system be **read-heavy**, **write-heavy**, or **balanced**?  
-  - Which data entities will experience the most frequent operations?  
-🔹 **Traffic expectations:**  
-  - Estimated daily active users?  
-  - Peak concurrent users?  
-  - Expected API request rate (e.g., 1000 requests/sec)?  
-🔹 **Data volume & growth:**  
-  - Initial database size?  
-  - Expected growth rate over time?  
-  - Any historical data to import?  
-🔹 **Performance requirements:**  
-  - Target query response times?  
-  - Any latency-sensitive operations?  
-  - Caching needs?  
-🔹 **Geographic distribution:**  
-  - Will your system require **multi-region** deployment?  
-  - Should data be **replicated across locations**?  
-🔹 **Data retention & archival:**  
-  - How long should data be kept?  
-  - Do you need automated archival strategies?  
-🔹 **Availability & disaster recovery:**  
-  - Required uptime (99.9%, 99.99%, etc.)?  
-  - Backup & recovery strategy?  
-  - Multi-region failover considerations?  
-🔹 **Compliance & security:**  
-  - Do you need **encryption at rest** or **in transit**?  
-  - Are there industry-specific compliance needs?  
-  - Should data be **anonymized or tokenized** for privacy?  
+Please provide details on:  
+🔹 **Frequent queries**: What are the most common data retrieval patterns in your application?  
+🔹 **Critical joins**: Are there any joins that will happen often or with large datasets?  
+🔹 **Write operations**: What are the important create/update/delete operations in your system?  
+🔹 **Read-write ratio**: Will your system be "read-heavy", "write-heavy", or "balanced"?  
+🔹 **Growth expectations**: How do you expect your data volume to increase over time?  
 
-Understanding these constraints will help us build a **scalable and efficient** data model.`;
+Based on this information, I'll suggest the most appropriate data model type (SQL, NoSQL, GraphDB) for your needs.`;
 
     default:
       return "🤖 How can I assist you with your data model today?";
@@ -337,12 +304,7 @@ IMPORTANT INSTRUCTIONS:
 5. Structure your response to clearly separate different missing fields
 
 DO NOT ask open-ended, vague questions like "Let's explore more about these features."
-DO ask specific questions like "What is your expected peak concurrent user count?" or "Which entities will require the most frequent read operations?"
-
-For each missing field, provide:
-1. A clear explanation of what the field means
-2. Why this information is important for the data model
-3. Examples of possible values or responses`;
+DO ask specific questions like "What is your expected read/write ratio?" or "What are your key data access patterns?"`;
 
   // Base JSON schema structure that all steps will extend
   const baseSchema = {
@@ -373,22 +335,10 @@ For each missing field, provide:
     case 'projectDetails':
       systemPrompt += `
         For project details, ensure you have:
-        - Clear project type classification
         - Detailed project description
         - Specific industry sector
-        - Well-defined target market
-        - Comprehensive security requirements
-
-        IMPORTANT: Once you have sufficient information about the project, you MUST suggest an appropriate data model type:
-        - SQL/Relational: For structured data with complex relationships and ACID requirements
-        - NoSQL/Document: For semi-structured data, flexible schema, and horizontal scaling
-        - Graph: For highly connected data with complex relationships
-        - Time-series: For time-ordered data with high write throughput
-        - Columnar: For analytical workloads and data warehousing
         
-        Explain your recommendation based on the project's specific needs, access patterns, and scale requirements.
-        
-        Ask focused questions until all these aspects are clearly understood.
+        Ask focused questions until these aspects are clearly understood.
       `;
       jsonSchema = {
         ...baseSchema,
@@ -398,15 +348,11 @@ For each missing field, provide:
             type: 'object',
             additionalProperties: false,
             properties: {
-              type: { type: ['string', 'null'] },
               description: { type: ['string', 'null'] },
               industry: { type: ['string', 'null'] },
-              targetMarket: { type: ['string', 'null'] },
-              securityRequirements: { type: ['string', 'null'] },
-              suggestedDataModel: { type: ['string', 'null'] },
               completed: { type: 'boolean' }
             },
-            required: ['type', 'description', 'industry', 'targetMarket', 'securityRequirements', 'suggestedDataModel', 'completed']
+            required: ['description', 'industry', 'completed']
           }
         }
       };
@@ -414,11 +360,11 @@ For each missing field, provide:
 
     case 'functionalRequirements':
       systemPrompt += `
-        You are gathering high-level user stories and business requirements. 
-        Focus on core business functionality and main user interactions. 
-        Ask about different user types and their main goals. 
-        Guide the conversation to understand the key features and business processes.
-        Example: "Instructors can create and publish courses" rather than "Users can reset passwords".
+        You are gathering information about user types, key features, and data access patterns.
+        Focus on understanding:
+        - Different types of users in the system
+        - Key features and workflows
+        - How data will be accessed and queried
       `;
       jsonSchema = {
         ...baseSchema,
@@ -428,26 +374,20 @@ For each missing field, provide:
             type: 'object',
             additionalProperties: false,
             properties: {
-              userStories: { type: 'array', items: { type: 'string' } },
               userTypes: { type: 'array', items: { type: 'string' } },
               keyFeatures: { type: 'array', items: { type: 'string' } },
-              businessProcesses: { type: 'array', items: { type: 'string' } },
-              integrations: { type: 'array', items: { type: 'string' } },
               dataAccess: {
                 type: 'object',
                 additionalProperties: false,
                 properties: {
                   accessPatterns: { type: 'array', items: { type: 'string' } },
-                  searchRequirements: { type: 'array', items: { type: 'string' } },
-                  filteringNeeds: { type: 'array', items: { type: 'string' } },
                   queryPattern: { type: ['string', 'null'] }
                 },
-                required: ['accessPatterns', 'searchRequirements', 'filteringNeeds', 'queryPattern']
+                required: ['accessPatterns', 'queryPattern']
               },
-              reportingNeeds: { type: 'array', items: { type: 'string' } },
               completed: { type: 'boolean' }
             },
-            required: ['userStories', 'userTypes', 'keyFeatures', 'businessProcesses', 'integrations', 'dataAccess', 'reportingNeeds', 'completed']
+            required: ['userTypes', 'keyFeatures', 'dataAccess', 'completed']
           }
         }
       };
@@ -457,14 +397,12 @@ For each missing field, provide:
       systemPrompt += `
         You are gathering specific data operation patterns and scalability requirements.
         Ask about:
-        - Which entities will have heavy read operations
-        - Which entities will have heavy write operations
+        - Common data retrieval patterns (frequent queries)
+        - Critical joins that happen often or with large datasets
+        - Important write operations
         - Expected read/write ratio
-        - Peak concurrent users and average daily usage
-        - Data volume expectations and growth
-        - Performance requirements for critical operations
-        - Geographic distribution needs
-        Guide the user to provide specific numbers and metrics where possible.
+        - Data volume growth expectations
+        - Suggested data model type (SQL, NoSQL, GraphDB)
       `;
       jsonSchema = {
         ...baseSchema,
@@ -474,103 +412,15 @@ For each missing field, provide:
             type: 'object',
             additionalProperties: false,
             properties: {
-              dataOperations: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  heavyRead: {
-                    type: 'object',
-                    additionalProperties: false,
-                    properties: {
-                      entities: { type: 'array', items: { type: 'string' } },
-                      frequency: { type: ['string', 'null'] },
-                      patterns: { type: 'array', items: { type: 'string' } }
-                    },
-                    required: ['entities', 'frequency', 'patterns']
-                  },
-                  heavyWrite: {
-                    type: 'object',
-                    additionalProperties: false,
-                    properties: {
-                      entities: { type: 'array', items: { type: 'string' } },
-                      frequency: { type: ['string', 'null'] },
-                      patterns: { type: 'array', items: { type: 'string' } }
-                    },
-                    required: ['entities', 'frequency', 'patterns']
-                  },
-                  readWriteRatio: { type: ['string', 'null'] },
-                  consistencyRequirements: { type: 'array', items: { type: 'string' } },
-                  schemaFlexibility: { type: ['string', 'null'] }
-                },
-                required: ['heavyRead', 'heavyWrite', 'readWriteRatio', 'consistencyRequirements', 'schemaFlexibility']
-              },
-              traffic: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  peakConcurrentUsers: { type: ['string', 'null'] },
-                  averageDailyUsers: { type: ['string', 'null'] },
-                  growthProjection: { type: ['string', 'null'] },
-                  expectedApiRequestsPerSecond: { type: ['string', 'null'] },
-                  geographicDistribution: { type: ['string', 'null'] },
-                  peakHours: { type: ['string', 'null'] },
-                  seasonality: { type: ['string', 'null'] }
-                },
-                required: ['peakConcurrentUsers', 'averageDailyUsers', 'growthProjection', 'expectedApiRequestsPerSecond', 
-                          'geographicDistribution', 'peakHours', 'seasonality']
-              },
-              dataVolume: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  initialSize: { type: ['string', 'null'] },
-                  growthRate: { type: ['string', 'null'] },
-                  maxRecordSize: { type: ['string', 'null'] },
-                  dataRetentionRequirements: { type: ['string', 'null'] },
-                  archivalNeeds: { type: ['string', 'null'] },
-                  estimatedHistoricalData: { type: ['string', 'null'] },
-                  storageType: { type: ['string', 'null'] }
-                },
-                required: ['initialSize', 'growthRate', 'maxRecordSize', 'dataRetentionRequirements', 
-                          'archivalNeeds', 'estimatedHistoricalData', 'storageType']
-              },
-              performance: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  expectedLatency: { type: ['string', 'null'] },
-                  criticalOperations: { type: 'array', items: { type: 'string' } },
-                  slaRequirements: { type: ['string', 'null'] },
-                  cacheableEntities: { type: 'array', items: { type: 'string' } }
-                },
-                required: ['expectedLatency', 'criticalOperations', 'slaRequirements', 'cacheableEntities']
-              },
-              availability: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  upTimeRequirements: { type: ['string', 'null'] },
-                  backupRequirements: { type: ['string', 'null'] },
-                  disasterRecovery: { type: ['string', 'null'] },
-                  multiRegion: { type: ['string', 'null'] }
-                },
-                required: ['upTimeRequirements', 'backupRequirements', 'disasterRecovery', 'multiRegion']
-              },
-              compliance: {
-                type: 'object',
-                additionalProperties: false,
-                properties: {
-                  dataResidency: { type: ['string', 'null'] },
-                  auditRequirements: { type: ['string', 'null'] },
-                  dataPrivacy: { type: ['string', 'null'] },
-                  encryptionAtRest: { type: ['string', 'null'] },
-                  encryptionInTransit: { type: ['string', 'null'] }
-                },
-                required: ['dataResidency', 'auditRequirements', 'dataPrivacy', 'encryptionAtRest', 'encryptionInTransit']
-              },
+              frequentQueries: { type: 'array', items: { type: 'string' } },
+              criticalJoins: { type: 'array', items: { type: 'string' } },
+              writeOperations: { type: 'array', items: { type: 'string' } },
+              readWriteRatio: { type: ['string', 'null'] },
+              growthExpectations: { type: ['string', 'null'] },
+              suggestedDataModel: { type: ['string', 'null'] },
               completed: { type: 'boolean' }
             },
-            required: ['dataOperations', 'traffic', 'dataVolume', 'performance', 'availability', 'compliance', 'completed']
+            required: ['frequentQueries', 'criticalJoins', 'writeOperations', 'readWriteRatio', 'growthExpectations', 'suggestedDataModel', 'completed']
           }
         }
       };
@@ -583,13 +433,6 @@ For each missing field, provide:
     
     switch(step) {
       case 'projectDetails':
-        if(!currentInfo.type || currentInfo.type === null) {
-          missingFields.push({
-            field: 'type',
-            explanation: 'The type of application youre building (e.g., SaaS, e-commerce, fintech, IoT, social platform)',
-            importance: 'This helps determine the core entities and relationships in your data model'
-          });
-        }
         if(!currentInfo.description || currentInfo.description === null) {
           missingFields.push({
             field: 'description',
@@ -604,38 +447,9 @@ For each missing field, provide:
             importance: 'Different industries have different data modeling patterns and compliance requirements'
           });
         }
-        if(!currentInfo.targetMarket || currentInfo.targetMarket === null) {
-          missingFields.push({
-            field: 'targetMarket',
-            explanation: 'Your target audience (e.g., consumers, businesses, enterprise users)',
-            importance: 'This affects user entity design and access patterns'
-          });
-        }
-        if(!currentInfo.securityRequirements || currentInfo.securityRequirements === null) {
-          missingFields.push({
-            field: 'securityRequirements',
-            explanation: 'Security or compliance requirements (e.g., GDPR, HIPAA, SOC 2, encryption needs)',
-            importance: 'This impacts data storage, encryption, and access control in your model'
-          });
-        }
-        if(!currentInfo.suggestedDataModel || currentInfo.suggestedDataModel === null && 
-           currentInfo.type && currentInfo.description && currentInfo.industry) {
-          missingFields.push({
-            field: 'suggestedDataModel',
-            explanation: 'Based on your project details, what database type would be most appropriate (SQL/Relational, NoSQL/Document, Graph, Time-series, etc.)',
-            importance: 'This fundamental choice affects the entire structure of your data model'
-          });
-        }
         break;
         
       case 'functionalRequirements':
-        if(!currentInfo.userStories || !currentInfo.userStories.length) {
-          missingFields.push({
-            field: 'userStories',
-            explanation: 'Key user stories that describe what users can do in your system',
-            importance: 'These translate directly to data entities and relationships'
-          });
-        }
         if(!currentInfo.userTypes || !currentInfo.userTypes.length) {
           missingFields.push({
             field: 'userTypes',
@@ -650,20 +464,6 @@ For each missing field, provide:
             importance: 'Each feature typically requires specific entities and relationships'
           });
         }
-        if(!currentInfo.businessProcesses || !currentInfo.businessProcesses.length) {
-          missingFields.push({
-            field: 'businessProcesses',
-            explanation: 'Key business workflows and processes your system supports',
-            importance: 'These often require specific data structures and state tracking'
-          });
-        }
-        if(!currentInfo.integrations || !currentInfo.integrations.length) {
-          missingFields.push({
-            field: 'integrations',
-            explanation: 'External systems or services your application will integrate with',
-            importance: 'Integrations often require specific data structures for compatibility'
-          });
-        }
         if(!currentInfo.dataAccess || !currentInfo.dataAccess.accessPatterns || !currentInfo.dataAccess.accessPatterns.length) {
           missingFields.push({
             field: 'dataAccess.accessPatterns',
@@ -671,63 +471,56 @@ For each missing field, provide:
             importance: 'Access patterns heavily influence indexing and relationship design'
           });
         }
-        if(!currentInfo.reportingNeeds || !currentInfo.reportingNeeds.length) {
+        if(!currentInfo.dataAccess || currentInfo.dataAccess.queryPattern === null) {
           missingFields.push({
-            field: 'reportingNeeds',
-            explanation: 'Reports or analytics your system needs to generate',
-            importance: 'Reporting requirements often influence denormalization and indexing strategies'
+            field: 'dataAccess.queryPattern',
+            explanation: 'The type of queries your system will primarily use (simple lookups, heavy joins, graph traversal)',
+            importance: 'This helps determine the most appropriate database structure'
           });
         }
         break;
         
       case 'nonFunctionalRequirements':
-        if(!currentInfo.dataOperations?.heavyRead?.entities || !currentInfo.dataOperations.heavyRead.entities.length) {
+        if(!currentInfo.frequentQueries || !currentInfo.frequentQueries.length) {
           missingFields.push({
-            field: 'dataOperations.heavyRead.entities',
-            explanation: 'Which entities will experience the most read operations',
-            importance: 'High-read entities often need special indexing and caching strategies'
+            field: 'frequentQueries',
+            explanation: 'Common data retrieval patterns in your application',
+            importance: 'Frequent queries need optimization through indexing and data structure design'
           });
         }
-        if(!currentInfo.dataOperations?.heavyWrite?.entities || !currentInfo.dataOperations.heavyWrite.entities.length) {
+        if(!currentInfo.criticalJoins || !currentInfo.criticalJoins.length) {
           missingFields.push({
-            field: 'dataOperations.heavyWrite.entities',
-            explanation: 'Which entities will experience the most write operations',
-            importance: 'High-write entities may need special considerations for performance and concurrency'
+            field: 'criticalJoins',
+            explanation: 'Joins that happen often or with large datasets',
+            importance: 'Critical joins may require denormalization or special indexing strategies'
           });
         }
-        if(!currentInfo.traffic?.peakConcurrentUsers || currentInfo.traffic.peakConcurrentUsers === null) {
+        if(!currentInfo.writeOperations || !currentInfo.writeOperations.length) {
           missingFields.push({
-            field: 'traffic.peakConcurrentUsers',
-            explanation: 'Maximum number of users expected to use the system simultaneously',
-            importance: 'This affects database connection pooling and scaling strategies'
+            field: 'writeOperations',
+            explanation: 'Important create/update/delete operations in your system',
+            importance: 'Write-heavy operations may require special consideration for performance'
           });
         }
-        if(!currentInfo.dataVolume?.initialSize || currentInfo.dataVolume.initialSize === null) {
+        if(!currentInfo.readWriteRatio || currentInfo.readWriteRatio === null) {
           missingFields.push({
-            field: 'dataVolume.initialSize',
-            explanation: 'Expected initial size of your database (e.g., number of records, GB)',
-            importance: 'This helps determine initial provisioning and indexing strategies'
+            field: 'readWriteRatio',
+            explanation: 'Whether your system is read-heavy, write-heavy, or balanced',
+            importance: 'This ratio influences database choice and optimization strategies'
           });
         }
-        if(!currentInfo.dataVolume?.growthRate || currentInfo.dataVolume.growthRate === null) {
+        if(!currentInfo.growthExpectations || currentInfo.growthExpectations === null) {
           missingFields.push({
-            field: 'dataVolume.growthRate',
-            explanation: 'Expected growth rate of your data over time',
-            importance: 'This affects partitioning strategies and long-term storage planning'
+            field: 'growthExpectations',
+            explanation: 'How you expect your data volume to increase over time',
+            importance: 'Growth expectations affect scaling strategies and infrastructure planning'
           });
         }
-        if(!currentInfo.performance?.expectedLatency || currentInfo.performance.expectedLatency === null) {
+        if(!currentInfo.suggestedDataModel || currentInfo.suggestedDataModel === null) {
           missingFields.push({
-            field: 'performance.expectedLatency',
-            explanation: 'Maximum acceptable response time for critical operations',
-            importance: 'This influences indexing, caching, and query optimization strategies'
-          });
-        }
-        if(!currentInfo.availability?.upTimeRequirements || currentInfo.availability.upTimeRequirements === null) {
-          missingFields.push({
-            field: 'availability.upTimeRequirements',
-            explanation: 'Required system uptime (e.g., 99.9%, 99.99%)',
-            importance: 'This affects replication, failover, and backup strategies'
+            field: 'suggestedDataModel',
+            explanation: 'The most appropriate data model type for your needs (SQL, NoSQL, GraphDB)',
+            importance: 'This fundamental choice affects the entire structure of your data model'
           });
         }
         break;
@@ -764,12 +557,14 @@ ${JSON.stringify(context.allCollectedInfo, null, 2)}
 User's latest response: ${userMessage}
 
 YOUR TASK:
-1. Analyze the user's response to extract any information for the missing fields
-2. Ask DIRECT questions about ALL remaining missing fields
-3. For each question, explain what the information means and why it's important
-4. Provide examples of possible answers to guide the user
-5. DO NOT ask open-ended exploratory questions - focus on collecting specific missing data
-6. Structure your response with clear headings for each missing field`
+1. FIRST, carefully analyze the user's response to extract ANY information for the missing fields
+2. UPDATE the currentStepInfo with ALL information you can extract from the user's response
+3. NEVER discard information the user has already provided - only add or update
+4. Ask DIRECT questions about ALL remaining missing fields
+5. For each question, explain what the information means and why it's important
+6. Provide examples of possible answers to guide the user
+7. DO NOT ask open-ended exploratory questions - focus on collecting specific missing data
+8. Structure your response with clear headings for each missing field`
   });
 
   messages.push({ role: 'user', content: userMessage });
@@ -792,6 +587,7 @@ YOUR TASK:
   // Check if all required fields are completed
   response.completed = validateStepCompletion(response.updatedInfo, context.step) === true;
   
+  console.log('response', response);
   // Add completion message if the step is now completed
   if (response.completed) {
     const nextStep = getNextStep(context.step);
@@ -828,12 +624,17 @@ ${response.message}`;
 function getNextStep(currentStep) {
   const steps = ['projectDetails', 'functionalRequirements', 'nonFunctionalRequirements'];
   const currentIndex = steps.indexOf(currentStep);
-  return currentIndex < steps.length - 1 ? steps[currentIndex + 1] : null;
+  
+  if (currentIndex >= 0 && currentIndex < steps.length - 1) {
+    return steps[currentIndex + 1];
+  }
+  
+  return null;
 }
 
 // Helper function to format step name for display
 function formatStepName(step) {
-  switch(step) {
+  switch (step) {
     case 'projectDetails':
       return 'Project Details';
     case 'functionalRequirements':
@@ -862,22 +663,39 @@ function identifyMissingFields(stepInfo) {
   return missingFields;
 }
 
-// Helper function to validate step completion
-function validateStepCompletion(info, step) {
-  switch(step) {
+// Update or add this function to properly validate step completion
+function validateStepCompletion(stepInfo, step) {
+  if (!stepInfo) return false;
+  
+  switch (step) {
     case 'projectDetails':
-      return !!(info.type && info.description && info.industry && 
-               info.targetMarket && info.securityRequirements);
-    
+      // Check if both description and industry are filled
+      return stepInfo.description !== null && 
+             stepInfo.industry !== null;
+      
     case 'functionalRequirements':
-      return !!(info.userStories?.length && info.userTypes?.length && 
-               info.keyFeatures?.length && info.businessProcesses?.length);
-    
+      // Check if userTypes, keyFeatures, and dataAccess fields are filled
+      return stepInfo.userTypes && 
+             stepInfo.userTypes.length > 0 && 
+             stepInfo.keyFeatures && 
+             stepInfo.keyFeatures.length > 0 && 
+             stepInfo.dataAccess && 
+             stepInfo.dataAccess.accessPatterns && 
+             stepInfo.dataAccess.accessPatterns.length > 0 && 
+             stepInfo.dataAccess.queryPattern !== null;
+      
     case 'nonFunctionalRequirements':
-      return !!(info.dataOperations?.heavyRead?.entities?.length && 
-               info.traffic?.peakConcurrentUsers && 
-               info.dataVolume?.initialSize);
-    
+      // Check if all non-functional requirement fields are filled
+      return stepInfo.frequentQueries && 
+             stepInfo.frequentQueries.length > 0 && 
+             stepInfo.criticalJoins && 
+             stepInfo.criticalJoins.length > 0 && 
+             stepInfo.writeOperations && 
+             stepInfo.writeOperations.length > 0 && 
+             stepInfo.readWriteRatio !== null && 
+             stepInfo.growthExpectations !== null && 
+             stepInfo.suggestedDataModel !== null;
+      
     default:
       return false;
   }
