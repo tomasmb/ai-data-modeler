@@ -41,7 +41,7 @@ const DataModelPage = () => {
     return (
       <NewModelModal 
         onSubmit={handleCreateNewModel} 
-        onCancel={() => navigate('/data-models')}
+        onCancel={() => navigate('/')}
         isLoading={isCreating}
       />
     );
