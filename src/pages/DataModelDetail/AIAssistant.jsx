@@ -24,7 +24,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
     const saved = localStorage.getItem(`collectedInfo-${dataModelId}`);
     return saved ? JSON.parse(saved) : {
       projectDetails: {
-        description: null,
+        description: modelData?.description || null,
         industry: null,
         completed: false
       },

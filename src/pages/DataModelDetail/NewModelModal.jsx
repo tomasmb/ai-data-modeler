@@ -34,13 +34,17 @@ export const NewModelModal = ({ onSubmit, onCancel }) => {
           </div>
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700">Description</label>
-            <input
-              type="text"
+            <textarea
               name="description"
+              rows="4"
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
               value={formData.description}
               onChange={handleInputChange}
+              placeholder="Describe your data model's purpose, key features, and any specific requirements..."
             />
+            <p className="mt-1 text-sm text-gray-500">
+              A detailed description will help the AI better understand your needs.
+            </p>
           </div>
           <div className="flex justify-end gap-2">
             <button

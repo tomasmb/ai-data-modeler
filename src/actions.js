@@ -177,14 +177,38 @@ export const saveDataModelSchema = async ({ dataModelId, schema }, context) => {
   }
 };
 
-function getDefaultStepQuestion(step) {
+function getDefaultStepQuestion(step, modelInfo = {}) {
+  const { name = '', description = '' } = modelInfo;
+  
   switch (step) {
     case 'projectDetails':
-      return `🚀 Let's start by understanding your project!  
+      // Check if we have a sufficiently detailed description (more than 100 characters)
+      const hasDetailedDescription = description && description.length > 100;
       
-To generate the best data model, I need some key details:  
-🔹 **Project description**: Please provide a brief description of your project (main features, business goals, what problem it solves).  
-🔹 **Industry**: Which industry does your project serve? (e.g., healthcare, logistics, finance, gaming).  
+      return `🚀 ${name ? `Welcome to "${name}"! ` : "Let's start by understanding your project! "}
+      
+${hasDetailedDescription ? `I see you've provided a detailed description:
+
+"${description}"
+
+To continue, I just need one more detail:
+🔹 **Industry**: Which industry does your project serve? (e.g., healthcare, logistics, finance, gaming)` 
+: `${description ? `I see you've provided an initial description:
+
+"${description}"
+
+To create the best data model, I'll need a bit more detail about your project:` : `To generate the best data model, I need some key details:`}
+
+🔹 **Detailed project description**: Please provide a ${description ? 'more detailed ' : ''}description of your project, including:
+   - Main features and functionalities
+   - Business goals and objectives
+   - Problems it solves
+   - Key entities and their relationships
+
+For example:
+"This is an e-commerce platform focusing on handmade artisanal products. It connects artisans with customers, handles order processing, inventory management, and includes a review system. The platform needs to track artisan profiles, product listings, customer orders, and support a recommendation engine based on customer preferences."
+
+🔹 **Industry**: Which industry does your project serve? (e.g., healthcare, logistics, finance, gaming)`}
 
 This information will help me create an optimal data model for your needs!`;
 
@@ -215,7 +239,7 @@ Based on this information, I'll suggest the most appropriate data model type (SQ
     default:
       return "🤖 How can I assist you with your data model today?";
   }
-};
+}
 
 export const sendChatMessage = async ({ dataModelId, content, context }, ctx) => {
   if (!ctx.user) { throw new HttpError(401) }
@@ -229,7 +253,7 @@ export const sendChatMessage = async ({ dataModelId, content, context }, ctx) =>
 
   // If this is a new step initialization, create AI message with default question
   if (context.isNewStep) {
-    const defaultQuestion = getDefaultStepQuestion(context.step);
+    const defaultQuestion = getDefaultStepQuestion(context.step, { name: dataModel.name, description: dataModel.description });
     await ctx.entities.ChatMessage.create({
       data: {
         content: defaultQuestion,
