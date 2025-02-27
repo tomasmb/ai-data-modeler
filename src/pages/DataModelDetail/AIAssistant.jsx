@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQuery, getDataModelChatHistory, sendChatMessage, saveDataModelRequirements, generateDataModel, saveDataModelSchema, askDataModelQuestion } from 'wasp/client/operations';
 import ModelInfoModal from './ModelInfoModal';
-import { XMarkIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon } from '@heroicons/react/24/outline';
+import SuggestionsModal from './SuggestionsModal';
+import { XMarkIcon, ArrowsPointingOutIcon, ArrowsPointingInIcon, CogIcon } from '@heroicons/react/24/outline';
 
 const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchema }) => {
   const [message, setMessage] = useState('');
@@ -78,6 +79,15 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
 
   // Add new state for fullscreen mode
   const [isFullScreen, setIsFullScreen] = useState(false);
+  
+  // Add new state for suggestions
+  const [suggestions, setSuggestions] = useState(() => {
+    const savedSuggestions = localStorage.getItem(`suggestions-${dataModelId}`);
+    return savedSuggestions ? JSON.parse(savedSuggestions) : [];
+  });
+  
+  // Add state for suggestions modal
+  const [showSuggestionsModal, setShowSuggestionsModal] = useState(false);
 
   // Add effect to save initializedSteps to localStorage when it changes
   useEffect(() => {
@@ -326,6 +336,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
           content: userMessage.content,
           dataModelId,
           dataModelSchema: modelDataSchema,
+          suggestions, // Pass current suggestions
         });
         
         // Add AI response to chat history
@@ -338,6 +349,11 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
           
           // Update local chat history with AI response
           setChatHistory(prev => [...prev, aiMessage]);
+        }
+        
+        // Update suggestions if they've changed
+        if (response.suggestions) {
+          setSuggestions(response.suggestions);
         }
         
         // No need to update collected info or handle step transitions in free phase
@@ -549,13 +565,70 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
     setIsFullScreen(!isFullScreen);
   };
 
+  // Add effect to save suggestions to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem(`suggestions-${dataModelId}`, JSON.stringify(suggestions));
+  }, [suggestions, dataModelId]);
+
+  // Add function to handle applying suggestions
+  const handleApplySuggestions = async () => {
+    // Close the suggestions modal first
+    setShowSuggestionsModal(false);
+    
+    // Then show the generating overlay
+    setIsGenerating(true);
+    
+    try {
+      // Generate a new schema based on the current requirements and suggestions
+      const result = await generateDataModel({
+        requirements: collectedInfo,
+        suggestions: suggestions // Pass the suggestions to the generateDataModel function
+      });
+
+      // Save the generated schema to the database
+      await saveDataModelSchema({
+        dataModelId,
+        schema: result.schema
+      });
+
+      // Update the CodeEditor via parent component
+      onSchemaGenerated(result.schema);
+
+      // Add a system message about the applied changes
+      const systemMessage = {
+        sender: 'ai',
+        content: `✅ Applied ${suggestions.length} suggested changes to the data model.\n\n${result.explanation}`,
+        timestamp: new Date().toISOString()
+      };
+      setChatHistory(prev => [...prev, systemMessage]);
+      
+      // Clear suggestions after applying them
+      setSuggestions([]);
+      
+      // Force a refresh of the page to get the latest schema
+      window.location.reload();
+    } catch (error) {
+      console.error('Error applying suggestions:', error);
+      
+      // Add error message to chat
+      const errorMessage = {
+        sender: 'ai',
+        content: `❌ Error applying suggestions: ${error.message || 'An unknown error occurred'}`,
+        timestamp: new Date().toISOString()
+      };
+      setChatHistory(prev => [...prev, errorMessage]);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
   return (
     <div className={`bg-white rounded-lg shadow-lg p-4 flex flex-col ${
       isFullScreen ? 'fixed inset-0 z-50' : 'w-full'
     }`}>
       {/* Add the generating overlay as a conditional element inside the component */}
       {isGenerating && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100]">
           <div className="bg-white p-8 rounded-lg shadow-xl text-center">
             <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500 mx-auto mb-4"></div>
             <h3 className="text-xl font-semibold mb-2">Generating Data Model</h3>
@@ -617,6 +690,20 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
                 className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors text-sm border border-gray-200"
               >
                 View Requirements
+              </button>
+              <button
+                onClick={() => setShowSuggestionsModal(true)}
+                className="relative p-1.5 rounded-full transition-colors"
+                title="Model Suggestions"
+              >
+                <CogIcon 
+                  className={`h-5 w-5 ${suggestions.length > 0 ? 'text-yellow-500' : 'text-gray-500 hover:text-gray-700'}`} 
+                />
+                {suggestions.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-yellow-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                    {suggestions.length}
+                  </span>
+                )}
               </button>
             </div>
           )}
@@ -705,6 +792,14 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
         onClose={() => setShowInfoModal(false)}
         collectedInfo={collectedInfo}
         onUpdate={handleInfoUpdate}
+      />
+
+      {/* Add the suggestions modal component */}
+      <SuggestionsModal
+        isOpen={showSuggestionsModal}
+        onClose={() => setShowSuggestionsModal(false)}
+        suggestions={suggestions}
+        onApplyChanges={handleApplySuggestions}
       />
     </div>
   );

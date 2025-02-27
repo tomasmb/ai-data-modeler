@@ -942,7 +942,7 @@ export const saveDataModelRequirements = async (args, context) => {
   });
 }
 
-export const generateDataModel = async ({ requirements }, ctx) => {
+export const generateDataModel = async ({ requirements, suggestions = [] }, ctx) => {
   if (!ctx.user) { throw new HttpError(401) }
 
   const messages = [];
@@ -1083,6 +1083,20 @@ IMPORTANT: For entity relationships, when an entity field references another ent
 - Set "isArray" to true for one-to-many or many-to-many relationships`
   });
 
+  // Add suggestions if available
+  if (suggestions && suggestions.length > 0) {
+    messages.push({
+      role: 'system',
+      content: `IMPORTANT: The user has approved the following suggestions for improving the data model. 
+Make sure to incorporate ALL of these suggestions into your generated schema:
+
+${suggestions.map((suggestion, index) => `${index + 1}. ${suggestion}`).join('\n')}
+
+These suggestions should take priority over any conflicting aspects of the requirements.
+Ensure your explanation clearly describes how you've incorporated each suggestion.`
+    });
+  }
+
   try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -1157,7 +1171,7 @@ IMPORTANT: For entity relationships, when an entity field references another ent
   }
 };
 
-export const askDataModelQuestion = async ({ dataModelId, content, dataModelSchema }, context) => {
+export const askDataModelQuestion = async ({ dataModelId, content, dataModelSchema, suggestions = [] }, context) => {
   if (!context.user) { throw new HttpError(401) }
 
   const dataModel = await context.entities.DataModel.findUnique({
@@ -1189,12 +1203,13 @@ export const askDataModelQuestion = async ({ dataModelId, content, dataModelSche
       schema: dataModelSchema,
       dataModel,
       recentMessages: recentMessages.reverse(), // Reverse to get chronological order
+      suggestions // Pass the current suggestions
     });
 
     // Save AI's response
     const aiMessage = await context.entities.ChatMessage.create({
       data: {
-        content: aiResponse,
+        content: aiResponse.content, // Only save the content part to the chat
         sender: 'ai',
         dataModelId: parseInt(dataModelId)
       }
@@ -1202,7 +1217,8 @@ export const askDataModelQuestion = async ({ dataModelId, content, dataModelSche
 
     return {
       userMessage,
-      aiMessage
+      aiMessage,
+      suggestions: aiResponse.suggestions // Return the updated suggestions
     };
   } catch (error) {
     console.error('OpenAI API error:', error);
@@ -1230,19 +1246,65 @@ When answering:
 2. Explain the reasoning behind design decisions when relevant
 3. If asked about something not in the model, suggest how it could be implemented
 4. Use examples to illustrate your explanations
-5. If the user asks about performance, suggest best practices`;
-  
+5. If the user asks about performance, suggest best practices
+6. IMPORTANT: Analyze the conversation and identify potential improvements to the data model
+7. For each improvement suggestion, provide a clear, concise explanation of what should be changed and why
+
+Your response must be in JSON format with:
+1. A 'content' field containing your natural language response to the user
+2. A 'suggestions' array containing strings with specific data model improvement suggestions`;
+
+  // Define JSON schema for the response
+  const jsonSchema = {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      content: {
+        type: 'string',
+        description: 'Natural language response to the user\'s question'
+      },
+      suggestions: {
+        type: 'array',
+        description: 'List of data model improvement suggestions',
+        items: {
+          type: 'string'
+        }
+      }
+    },
+    required: ['content', 'suggestions']
+  };
 
   messages.push({ role: 'system', content: systemPrompt });
+  
+  // Add existing suggestions if available
+  if (context.suggestions && Array.isArray(context.suggestions)) {
+    messages.push({ 
+      role: 'system', 
+      content: `Current improvement suggestions:
+${context.suggestions.map((s, i) => `${i+1}. ${s}`).join('\n')}
+
+You can keep these suggestions if still relevant, modify them, or add new ones based on the conversation.`
+    });
+  }
+  
   messages.push({ role: 'user', content: userMessage });
 
   const completion = await openai.chat.completions.create({
     model: 'gpt-4o',
     messages,
-    temperature: 0.7
+    temperature: 0.7,
+    response_format: { 
+      type: "json_schema",
+      json_schema: {
+        name: 'data_model_assistant',
+        strict: true,
+        schema: jsonSchema
+      },
+    }
   });
 
-  return completion.choices[0].message.content;
+  const response = JSON.parse(completion.choices[0].message.content);
+  return response;
 }
 
 // Add a new function to determine the suggested data model
