@@ -147,6 +147,10 @@ const CodeEditor = ({ dataModelId, modelData }) => {
     if (modelData?.schema) {
       setEditorValue(modelData.schema);
       setHasLocalChanges(false);
+    } else {
+      // Set empty schema if no data is available
+      setEditorValue('');
+      setHasLocalChanges(false);
     }
   }, [modelData]);
 

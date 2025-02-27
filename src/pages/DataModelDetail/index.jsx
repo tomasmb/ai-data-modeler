@@ -159,7 +159,7 @@ const DataModelPage = () => {
           dataModelId={id} 
           onSchemaGenerated={handleSchemaGenerated}
           modelData={model}
-          modelDataSchema={modelData.schema}
+          modelDataSchema={modelData?.schema}
         />
         <CodeEditor
           dataModelId={id}
@@ -170,7 +170,7 @@ const DataModelPage = () => {
         />
       </div>
 
-      {modelData && <ModelVisualization modelData={modelData.dataModel} />}
+      {modelData?.dataModel && <ModelVisualization modelData={modelData.dataModel} />}
 
       <ExampleSchemaModal
         isOpen={isExampleModalOpen}

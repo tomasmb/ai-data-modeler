@@ -10,7 +10,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
   const inputRef = useRef(null);
   const [phase, setPhase] = useState(() => {
     const savedPhase = localStorage.getItem(`phase-${dataModelId}`);
-    return savedPhase || 'structured';
+    return savedPhase || (modelDataSchema ? 'free' : 'structured');
   });
   const [currentStep, setCurrentStep] = useState(() => {
     const savedStep = localStorage.getItem(`currentStep-${dataModelId}`);
