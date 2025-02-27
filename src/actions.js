@@ -1092,6 +1092,12 @@ Make sure to incorporate ALL of these suggestions into your generated schema:
 
 ${suggestions.map((suggestion, index) => `${index + 1}. ${suggestion}`).join('\n')}
 
+CRITICAL INSTRUCTION: 
+1. DO NOT delete or remove any entities that are not specifically mentioned for removal.
+2. Preserve all existing entities and their relationships that are not directly affected by these suggestions.
+3. If a suggestion involves adding a new field or relationship to an existing entity, keep all other fields and relationships of that entity intact.
+4. If you're unsure whether a change would affect an entity not mentioned in the suggestions, err on the side of preservation.
+
 These suggestions should take priority over any conflicting aspects of the requirements.
 Ensure your explanation clearly describes how you've incorporated each suggestion.`
     });

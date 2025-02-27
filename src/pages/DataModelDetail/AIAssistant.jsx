@@ -571,7 +571,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
   }, [suggestions, dataModelId]);
 
   // Add function to handle applying suggestions
-  const handleApplySuggestions = async () => {
+  const handleApplySuggestions = async (updatedSuggestions) => {
     // Close the suggestions modal first
     setShowSuggestionsModal(false);
     
@@ -579,10 +579,18 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
     setIsGenerating(true);
     
     try {
+      // Use the updated suggestions passed from the modal, or fall back to the current suggestions
+      const suggestionsToApply = updatedSuggestions || suggestions;
+      
+      // Update the suggestions state with the edited suggestions
+      if (updatedSuggestions) {
+        setSuggestions(updatedSuggestions);
+      }
+      
       // Generate a new schema based on the current requirements and suggestions
       const result = await generateDataModel({
         requirements: collectedInfo,
-        suggestions: suggestions // Pass the suggestions to the generateDataModel function
+        suggestions: suggestionsToApply // Use the updated suggestions
       });
 
       // Save the generated schema to the database
@@ -597,7 +605,7 @@ const AIAssistant = ({ dataModelId, onSchemaGenerated, modelData, modelDataSchem
       // Add a system message about the applied changes
       const systemMessage = {
         sender: 'ai',
-        content: `✅ Applied ${suggestions.length} suggested changes to the data model.\n\n${result.explanation}`,
+        content: `✅ Applied ${suggestionsToApply.length} suggested changes to the data model.\n\n${result.explanation}`,
         timestamp: new Date().toISOString()
       };
       setChatHistory(prev => [...prev, systemMessage]);
