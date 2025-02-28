@@ -27,7 +27,7 @@ export const NewModelModal = ({ onSubmit, onCancel }) => {
               type="text"
               name="name"
               required
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 transition-colors"
               value={formData.name}
               onChange={handleInputChange}
             />
@@ -37,7 +37,7 @@ export const NewModelModal = ({ onSubmit, onCancel }) => {
             <textarea
               name="description"
               rows="4"
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+              className="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-1 focus:ring-gray-400 focus:border-gray-400 transition-colors"
               value={formData.description}
               onChange={handleInputChange}
               placeholder="Describe your data model's purpose, key features, and any specific requirements..."
