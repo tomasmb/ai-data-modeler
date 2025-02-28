@@ -1,10 +1,6 @@
 # AI Data Modeler
 
 <p align="center">
-  <img src="public/logo.png" alt="AI Data Modeler Logo" width="200"/>
-</p>
-
-<p align="center">
   <strong>Leverage AI to build and refine your data models with ease</strong>
 </p>
 
