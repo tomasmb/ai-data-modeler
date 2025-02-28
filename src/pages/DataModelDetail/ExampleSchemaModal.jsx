@@ -2,65 +2,77 @@ import React from 'react';
 
 const EXAMPLE_SCHEMA = `// E-commerce Data Model Example
 entity Product {
-  id: ID
-  name: string
-  description: string
-  price: number
-  inStock: boolean
-  createdAt: datetime
-  sku: string
+  id: ID @primary
+  name: string @nullable(false)
+  description: text
+  price: decimal @nullable(false)
+  inStock: boolean @default(false)
+  createdAt: datetime @default(now)
+  sku: string @unique @index
+  weight: decimal
+  dimensions: json
+  // Stores height, width, length
+  tags: string[]
   // References category by name instead of id
-  category: Category.name
+  category: Category.name @index
   // References Review entity with many relationship
   reviews: Review[]
 }
 
 entity Category {
-  id: ID
-  name: string
-  description: string
-  slug: string
+  id: ID @primary
+  name: string @unique @nullable(false)
+  description: text
+  slug: string @unique @index
+  status: enum(active,archived,draft) @default(active)
   products: Product[]
 }
 
 entity Review {
-  id: ID
-  rating: number
-  comment: string
-  createdAt: datetime
+  id: ID @primary
+  rating: number @nullable(false)
+  comment: text
+  createdAt: datetime @default(now)
+  isVerified: boolean @default(false)
   // References product by SKU
-  product: Product.sku
+  product: Product.sku @index
   // References user by email
-  user: User.email
+  user: User.email @index
 }
 
 entity User {
-  id: ID
-  email: string
-  name: string
+  id: ID @primary
+  email: string @unique @index
+  name: string @nullable(false)
+  status: enum(active,suspended,deleted) @default(active)
+  createdAt: datetime @default(now)
+  lastLogin: datetime
+  preferences: json
   reviews: Review[]
   orders: Order[]
 }
 
 entity Order {
-  id: ID
-  orderNumber: string
-  totalAmount: number
-  status: string
-  createdAt: datetime
+  id: ID @primary
+  orderNumber: string @unique @index
+  totalAmount: decimal @nullable(false)
+  status: enum(pending,paid,shipped,delivered,cancelled) @default(pending)
+  createdAt: datetime @default(now)
+  shippingAddress: json
   // References user by email
-  user: User.email
+  user: User.email @index
   items: OrderItem[]
 }
 
 entity OrderItem {
-  id: ID
-  quantity: number
-  price: number
+  id: ID @primary
+  quantity: int @nullable(false)
+  price: decimal @nullable(false)
+  discount: decimal @default(0)
   // References order by orderNumber
-  order: Order.orderNumber
+  order: Order.orderNumber @index
   // References product by SKU
-  product: Product.sku
+  product: Product.sku @index
 }`;
 
 export const ExampleSchemaModal = ({ isOpen, onClose, onApply }) => {
@@ -79,7 +91,7 @@ export const ExampleSchemaModal = ({ isOpen, onClose, onApply }) => {
           </button>
         </div>
         <div className="p-4">
-          <pre className="bg-gray-50 p-4 rounded overflow-auto max-h-[60vh]">
+          <pre className="bg-gray-50 p-4 rounded overflow-auto max-h-[70vh] font-mono text-sm">
             <code>{EXAMPLE_SCHEMA}</code>
           </pre>
         </div>

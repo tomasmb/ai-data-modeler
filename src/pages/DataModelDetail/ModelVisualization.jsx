@@ -15,10 +15,25 @@ const EntityNode = ({ data }) => (
       {data.name}
     </div>
     {data.fields.map((field, index) => (
-      <div key={index} className="text-sm py-1 flex justify-between items-center relative">
-        <span className="text-gray-700">{field.name}</span>
-        <span className="text-gray-500 italic">{field.fieldType}</span>
-        {field.isRequired && <span className="text-red-500">*</span>}
+      <div key={index} className="text-sm py-1 flex flex-col relative">
+        <div className="flex justify-between items-center">
+          <span className="text-gray-700">
+            {field.name}
+            {field.isPrimary && ' 🔑'}
+            {field.isUnique && ' 🎯'}
+            {field.isIndex && ' 📇'}
+          </span>
+          <span className="text-gray-500 italic">
+            {field.enumValues 
+              ? `enum(${JSON.parse(field.enumValues).join(',')})`
+              : field.fieldType}
+          </span>
+        </div>
+        {field.defaultValue && (
+          <span className="text-xs text-gray-400">
+            default: {field.defaultValue}
+          </span>
+        )}
         <Handle 
           id={`${field.id}-target`}
           type="target" 

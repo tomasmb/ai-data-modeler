@@ -1,21 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import { useQuery, getDataModel, getDataModelSchema } from 'wasp/client/operations';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, getDataModel, getDataModelSchema, updateDataModel, createDataModel } from 'wasp/client/operations';
+import { NewModelModal } from './NewModelModal';
 import AIAssistant from './AIAssistant';
 import CodeEditor from './CodeEditor';
 import ModelVisualization from './ModelVisualization';
 import { ExampleSchemaModal } from './ExampleSchemaModal';
 
 const DataModelPage = () => {
+  const navigate = useNavigate();
   const { id } = useParams();
-  const { data: modelData, isLoadingSchema, errorSchema } = useQuery(getDataModelSchema, { dataModelId: id });
   const isNewModel = id === 'new';
-  const { data: model, isLoading, error } = useQuery(
-    isNewModel ? null : getDataModel,
-    { id }
+  const [isCreating, setIsCreating] = useState(false);
+
+  // For new models only
+  const handleCreateNewModel = async (newModelData) => {
+    try {
+      setIsCreating(true);
+      const createdModel = await createDataModel({
+        name: newModelData.name,
+        description: newModelData.description,
+        definition: {}
+      });
+      if (createdModel?.id) {
+        // Add a small delay to ensure server processing is complete
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        window.location.replace(`/data-model/${createdModel.id}`);
+      } else {
+        console.error('Created model missing ID');
+      }
+    } catch (error) {
+      console.error('Error creating model:', error);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // Early return for new model
+  if (isNewModel) {
+    return (
+      <NewModelModal 
+        onSubmit={handleCreateNewModel} 
+        onCancel={() => navigate('/')}
+        isLoading={isCreating}
+      />
+    );
+  }
+
+  // Add refetch function from useQuery
+  const { data: modelData, isLoadingSchema, errorSchema, refetch: refetchSchema } = useQuery(
+    getDataModelSchema, 
+    { dataModelId: id },
+    { enabled: !isNewModel && !!id }
   );
 
-  // State for form fields and editor
+  const { data: model, isLoading, error } = useQuery(
+    getDataModel,
+    { id },
+    { enabled: !isNewModel && !!id }
+  );
+
   const [formData, setFormData] = useState({
     name: '',
     description: ''
@@ -24,12 +68,11 @@ const DataModelPage = () => {
   const [hasChanges, setHasChanges] = useState(false);
   const [isExampleModalOpen, setIsExampleModalOpen] = useState(false);
 
-  // Update form data when model is loaded
   useEffect(() => {
     if (model) {
       setFormData({
-        name: model.name,
-        description: model.description
+        name: model.name || '',
+        description: model.description || ''
       });
       setJsonEditor(JSON.stringify(model.definition || {}, null, 2));
     }
@@ -45,13 +88,26 @@ const DataModelPage = () => {
   };
 
   const handleSaveChanges = async () => {
-    // TODO: Implement save logic
     try {
-      // await updateDataModel({ ...formData, id, definition: JSON.parse(jsonEditor) });
+      await updateDataModel({
+        dataModelId: id,
+        name: formData.name,
+        description: formData.description,
+      });
       setHasChanges(false);
     } catch (error) {
       console.error('Error saving changes:', error);
     }
+  };
+
+  const handleSchemaGenerated = async (schema) => {
+    // Update the local state
+    if (modelData) {
+      modelData.schema = schema;
+    }
+    
+    // Refetch the schema data to ensure we have the latest version
+    await refetchSchema();
   };
 
   if (isLoading || isLoadingSchema) return 'Loading...';
@@ -82,12 +138,10 @@ const DataModelPage = () => {
               onChange={handleInputChange}
             />
           </div>
-          {!isNewModel && (
-            <div className='flex-none'>
-              <label className='block text-sm font-medium text-gray-700'>Version</label>
-              <span className='mt-1 block text-lg'>{model.version}</span>
-            </div>
-          )}
+          <div className='flex-none'>
+            <label className='block text-sm font-medium text-gray-700'>Version</label>
+            <span className='mt-1 block text-lg'>{model?.version}</span>
+          </div>
           <div className='flex items-end gap-2'>
             <button
               className='bg-blue-500 text-white px-4 py-2 rounded disabled:bg-gray-300'
@@ -100,9 +154,13 @@ const DataModelPage = () => {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className='flex gap-4 mb-6'>
-        <AIAssistant jsonData={jsonEditor} onUpdateJson={setJsonEditor} />
+        <AIAssistant 
+          dataModelId={id} 
+          onSchemaGenerated={handleSchemaGenerated}
+          modelData={model}
+          modelDataSchema={modelData?.schema}
+        />
         <CodeEditor
           dataModelId={id}
           modelData={modelData}
@@ -112,8 +170,7 @@ const DataModelPage = () => {
         />
       </div>
 
-      {/* Graph Visualization */}
-      {modelData && <ModelVisualization modelData={modelData.dataModel} />}
+      {modelData?.dataModel && <ModelVisualization modelData={modelData.dataModel} />}
 
       <ExampleSchemaModal
         isOpen={isExampleModalOpen}

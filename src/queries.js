@@ -73,7 +73,30 @@ export const getDataModelSchema = async ({ dataModelId }, context) => {
     for (const field of entity.fields) {
       // Skip fields that are part of relations as they'll be handled separately
       if (!field.fromRelations || field.fromRelations.length === 0) {
-        schema += `  ${field.name}: ${field.fieldType}\n`;
+        let fieldLine = `  ${field.name}: `;
+
+        // Handle enum type
+        if (field.enumValues) {
+          const enumValues = JSON.parse(field.enumValues);
+          fieldLine += `enum(${enumValues.join(',')})`;
+        } else {
+          fieldLine += field.fieldType;
+        }
+
+        // Add modifiers
+        const modifiers = [];
+        if (field.isPrimary) modifiers.push('@primary');
+        if (field.isUnique) modifiers.push('@unique');
+        if (field.isIndex) modifiers.push('@index');
+        if (!field.isRequired) modifiers.push('@nullable(true)');
+        if (field.defaultValue) modifiers.push(`@default(${field.defaultValue})`);
+
+        // Add modifiers to the field line if any exist
+        if (modifiers.length > 0) {
+          fieldLine += ' ' + modifiers.join(' ');
+        }
+
+        schema += fieldLine + '\n';
       }
     }
 
@@ -84,7 +107,24 @@ export const getDataModelSchema = async ({ dataModelId }, context) => {
         ? `.${relation.toField.name}` 
         : '';
       const fieldType = baseType + referencedField + (relation.cardinality === '1:n' ? '[]' : '');
-      schema += `  ${relation.fromField.name}: ${fieldType}\n`;
+      
+      let fieldLine = `  ${relation.fromField.name}: ${fieldType}`;
+
+      // Add modifiers for relation fields
+      const modifiers = [];
+      if (!relation.fromField.isRequired) modifiers.push('@nullable(true)');
+      if (relation.fromField.isUnique) modifiers.push('@unique');
+      if (relation.fromField.isIndex) modifiers.push('@index');
+      if (relation.fromField.defaultValue) {
+        modifiers.push(`@default(${relation.fromField.defaultValue})`);
+      }
+
+      // Add modifiers to the field line if any exist
+      if (modifiers.length > 0) {
+        fieldLine += ' ' + modifiers.join(' ');
+      }
+
+      schema += fieldLine + '\n';
     }
     
     schema += '}\n\n';
@@ -95,3 +135,21 @@ export const getDataModelSchema = async ({ dataModelId }, context) => {
     dataModel
   };
 };
+
+export const getDataModelChatHistory = async ({ dataModelId }, context) => {
+  if (!context.user) { throw new HttpError(401) }
+
+  const dataModel = await context.entities.DataModel.findUnique({
+    where: { id: parseInt(dataModelId) },
+    include: {
+      chatMessages: {
+        orderBy: { timestamp: 'asc' }
+      }
+    }
+  });
+
+  if (!dataModel) { throw new HttpError(404, 'Data model not found') }
+  if (dataModel.userId !== context.user.id) { throw new HttpError(403) }
+
+  return dataModel.chatMessages;
+}

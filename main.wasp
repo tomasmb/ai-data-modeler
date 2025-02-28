@@ -2,7 +2,7 @@ app aiDataModeler {
   wasp: {
     version: "^0.16.2"
   },
-  title: "aiDataModeler",
+  title: "AI Data Modeler",
   client: {
     rootComponent: import { Layout } from "@src/Layout.jsx",
   },
@@ -65,4 +65,29 @@ route DataModelDetailRoute { path: "/data-model/:id", to: DataModelDetailPage }
 page DataModelDetailPage {
   component: import DataModelDetailPage from "@src/pages/DataModelDetail/index.jsx",
   authRequired: true
+}
+
+action sendChatMessage {
+  fn: import { sendChatMessage } from "@src/actions.js",
+  entities: [DataModel, ChatMessage]
+}
+
+query getDataModelChatHistory {
+  fn: import { getDataModelChatHistory } from "@src/queries.js",
+  entities: [DataModel, ChatMessage]
+}
+
+action saveDataModelRequirements {
+  fn: import { saveDataModelRequirements } from "@src/actions.js",
+  entities: [DataModel]
+}
+
+action generateDataModel {
+  fn: import { generateDataModel } from "@src/actions.js",
+  entities: [DataModel]
+}
+
+action askDataModelQuestion {
+  fn: import { askDataModelQuestion } from "@src/actions.js",
+  entities: [DataModel, ChatMessage]
 }

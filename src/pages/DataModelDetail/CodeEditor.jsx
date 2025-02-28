@@ -2,6 +2,137 @@ import React, { useState, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
 import { saveDataModelSchema } from 'wasp/client/operations';
 import { ExampleSchemaModal } from './ExampleSchemaModal';
+import { QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
+import { parseDataModelSchema } from '../../lib/modelParser';
+
+const SchemaHintsModal = ({ isOpen, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg w-full max-w-2xl">
+        <div className="flex justify-between items-center p-4 border-b">
+          <h2 className="text-xl font-semibold">Data Model Schema Guide</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+          {/* Basic Syntax Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Basic Entity Syntax</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <pre className="text-sm text-gray-700">
+{`entity User {
+  id: ID @primary
+  name: string @nullable(false)
+  email: email @unique @index
+  status: enum(active,suspended) @default(active)
+  createdAt: datetime @default(now)
+}`}</pre>
+            </div>
+          </div>
+
+          {/* Field Types Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Available Field Types</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2 text-gray-700">Basic Types</h4>
+                <ul className="space-y-1 text-sm text-gray-600">
+                  <li><code className="text-blue-600">string</code> - Text values</li>
+                  <li><code className="text-blue-600">text</code> - Long text values</li>
+                  <li><code className="text-blue-600">number</code> - Numeric values</li>
+                  <li><code className="text-blue-600">int</code> - Integer values</li>
+                  <li><code className="text-blue-600">decimal</code> - Decimal values</li>
+                  <li><code className="text-blue-600">boolean</code> - True/false values</li>
+                  <li><code className="text-blue-600">datetime</code> - Date and time</li>
+                  <li><code className="text-blue-600">date</code> - Date only</li>
+                  <li><code className="text-blue-600">time</code> - Time only</li>
+                  <li><code className="text-blue-600">ID</code> - Unique identifier</li>
+                  <li><code className="text-blue-600">json</code> - JSON data</li>
+                  <li><code className="text-blue-600">email</code> - Email addresses</li>
+                  <li><code className="text-blue-600">url</code> - URLs</li>
+                  <li><code className="text-blue-600">uuid</code> - UUID values</li>
+                </ul>
+              </div>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2 text-gray-700">Field Modifiers</h4>
+                <ul className="space-y-1 text-sm text-gray-600">
+                  <li><code className="text-blue-600">@primary</code> - Primary key</li>
+                  <li><code className="text-blue-600">@unique</code> - Unique constraint</li>
+                  <li><code className="text-blue-600">@index</code> - Create index</li>
+                  <li><code className="text-blue-600">@nullable(true|false)</code> - Nullable field</li>
+                  <li><code className="text-blue-600">@default(value)</code> - Default value</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Relations Example Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Relations Example</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <pre className="text-sm text-gray-700">
+{`entity User {
+  id: ID @primary
+  posts: Post[]      // One-to-many relation
+  profile: Profile   // One-to-one relation
+}
+
+entity Post {
+  id: ID @primary
+  author: User       // Reference to User
+  title: string @index
+  authorName: User.name  // Field reference
+}`}</pre>
+            </div>
+          </div>
+
+          {/* Enum Example Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Enum Example</h3>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <pre className="text-sm text-gray-700">
+{`entity Task {
+  id: ID @primary
+  status: enum(pending,active,completed) @default(pending)
+  priority: enum(low,medium,high)
+}`}</pre>
+            </div>
+          </div>
+
+          {/* Rules and Tips Section */}
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800">Important Rules</h3>
+            <ul className="space-y-2 text-sm text-gray-600 list-disc pl-5">
+              <li>Field names must contain only letters, numbers, and underscores</li>
+              <li>Entity names should start with a capital letter</li>
+              <li>Comments are supported using <code className="text-blue-600">//</code></li>
+              <li>Each field must have a type declaration after the colon</li>
+              <li>Referenced entities must be defined in the schema</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="border-t p-4 flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const CodeEditor = ({ dataModelId, modelData }) => {
   const [hasLocalChanges, setHasLocalChanges] = useState(false);
@@ -9,11 +140,16 @@ const CodeEditor = ({ dataModelId, modelData }) => {
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [editorValue, setEditorValue] = useState('');
   const [isExampleModalOpen, setIsExampleModalOpen] = useState(false);
+  const [isHintVisible, setIsHintVisible] = useState(false);
 
   // Initialize editor with data from the server
   useEffect(() => {
     if (modelData?.schema) {
       setEditorValue(modelData.schema);
+      setHasLocalChanges(false);
+    } else {
+      // Set empty schema if no data is available
+      setEditorValue('');
       setHasLocalChanges(false);
     }
   }, [modelData]);
@@ -52,15 +188,24 @@ const CodeEditor = ({ dataModelId, modelData }) => {
     monaco.languages.register({ id: 'datamodel' });
     monaco.languages.setMonarchTokensProvider('datamodel', {
       keywords: ['entity'],
-      typeKeywords: ['string', 'number', 'boolean', 'datetime', 'ID'],
+      typeKeywords: [
+        'string', 'number', 'boolean', 'datetime', 'ID',
+        'int', 'float', 'decimal', 'date', 'time',
+        'json', 'text', 'email', 'url', 'uuid',
+        'bigint', 'binary', 'enum'
+      ],
+      modifiers: ['unique', 'index', 'primary', 'nullable', 'default'],
       tokenizer: {
         root: [
           [/entity/, 'keyword'],
-          [/string|number|boolean|datetime|ID/, 'type'],
+          [/@\w+/, 'modifier'],  // Highlight modifiers
+          [/enum\([^)]*\)/, 'type'],  // Highlight enum definitions
+          [/(string|number|boolean|datetime|ID|int|float|decimal|date|time|json|text|email|url|uuid|bigint|binary)\b/, 'type'],
           [/\/\/.*$/, 'comment'],
           [/[a-zA-Z_]\w*/, 'identifier'],
           [/[{}[\]]/, 'delimiter'],
           [/:/, 'delimiter'],
+          [/@/, 'delimiter'],
         ],
       },
     });
@@ -87,13 +232,8 @@ const CodeEditor = ({ dataModelId, modelData }) => {
 
   const validateSchema = (schema) => {
     try {
-      const lines = schema.split('\n');
-      let entities = new Map();
-      let entityFields = new Map();
-      let currentEntity = null;
-      let currentFields = new Map();
-      let lineNumber = 0;
-
+      const result = parseDataModelSchema(schema);
+      
       // Clear existing markers first
       const monaco = window.monaco;
       const model = monaco?.editor?.getModels()[0];
@@ -101,124 +241,33 @@ const CodeEditor = ({ dataModelId, modelData }) => {
         monaco.editor.setModelMarkers(model, 'owner', []);
       }
 
-      // First pass: collect all entity names
-      for (const line of lines) {
-        lineNumber++;
-        const trimmedLine = line.trim();
-        if (trimmedLine.startsWith('//') || !trimmedLine) continue;
-
-        if (trimmedLine.startsWith('entity')) {
-          const match = trimmedLine.match(/entity\s+(\w+)\s*{/);
-          if (!match) {
-            throw {
-              message: `Invalid entity declaration`,
-              lineNumber,
-              line: trimmedLine
+      // If there are validation errors, show them in the editor
+      if (!result.isValid) {
+        if (model) {
+          const markers = result.errors.map(error => {
+            const match = error.match(/Line (\d+):/);
+            const lineNumber = match ? parseInt(match[1]) : 1;
+            const lineContent = model.getLineContent(lineNumber);
+            
+            return {
+              severity: monaco.MarkerSeverity.Error,
+              message: error.replace(/Line \d+: /, ''),
+              startLineNumber: lineNumber,
+              startColumn: 1,
+              endLineNumber: lineNumber,
+              endColumn: lineContent.length + 1
             };
-          }
-          const entityName = match[1];
-          if (entities.has(entityName)) {
-            throw {
-              message: `Duplicate entity name: ${entityName}`,
-              lineNumber,
-              line: trimmedLine
-            };
-          }
-          currentEntity = entityName;
-          currentFields = new Map();
-          entities.set(entityName, { 
-            fields: currentFields,
-            relationFields: new Map()
           });
-        } 
-        else if (currentEntity && trimmedLine.includes(':')) {
-          const [fieldName, fieldType] = trimmedLine.split(':').map(s => s.trim());
-          if (!fieldName || !fieldType || !fieldName.match(/^\w+$/)) {
-            throw {
-              message: `Invalid field declaration`,
-              lineNumber,
-              line: trimmedLine
-            };
-          }
-
-          entityFields.set(`${currentEntity}.${fieldName}`, {
-            fieldType,
-            lineNumber,
-            line: trimmedLine
-          });
-
-          if (currentFields.has(fieldName)) {
-            throw {
-              message: `Duplicate field name "${fieldName}" in entity "${currentEntity}"`,
-              lineNumber,
-              line: trimmedLine
-            };
-          }
-
-          currentFields.set(fieldName, fieldType);
+          
+          monaco.editor.setModelMarkers(model, 'owner', markers);
         }
-      }
-
-      // Second pass: validate all entity references and their fields
-      for (const [fieldKey, fieldInfo] of entityFields) {
-        const { fieldType, lineNumber, line } = fieldInfo;
-        const isArray = fieldType.endsWith('[]');
-        const baseType = fieldType.replace('[]', '');
-        const [entityType, referencedField] = baseType.split('.');
-        
-        const basicTypes = ['string', 'number', 'boolean', 'datetime', 'ID'];
-        
-        // If it's not a basic type, validate the entity and field reference
-        if (!basicTypes.includes(entityType)) {
-          if (!entities.has(entityType)) {
-            throw {
-              message: `Referenced entity "${entityType}" is not defined in the schema`,
-              lineNumber,
-              line
-            };
-          }
-
-          // If there's a field reference (Entity.field format), validate the field exists
-          if (referencedField) {
-            const referencedEntity = entities.get(entityType);
-            if (!referencedEntity.fields.has(referencedField)) {
-              throw {
-                message: `Referenced field "${referencedField}" does not exist in entity "${entityType}"`,
-                lineNumber,
-                line
-              };
-            }
-          }
-        }
+        throw new Error(result.errors[0]);
       }
 
       setParseError(null);
-      return { 
-        entities: Object.fromEntries([...entities].map(([name, data]) => [
-          name, 
-          { fields: Object.fromEntries(data.fields) }
-        ])),
-        relations: []
-      };
+      return result;
     } catch (error) {
       console.error('Validation error:', error);
-      
-      // Add error marker to the editor
-      const monaco = window.monaco;
-      const model = monaco?.editor?.getModels()[0];
-      
-      if (model && error.lineNumber) {
-        const lineContent = model.getLineContent(error.lineNumber);
-        monaco.editor.setModelMarkers(model, 'owner', [{
-          severity: monaco.MarkerSeverity.Error,
-          message: error.message,
-          startLineNumber: error.lineNumber,
-          startColumn: 1,
-          endLineNumber: error.lineNumber,
-          endColumn: lineContent.length + 1
-        }]);
-      }
-
       setParseError(error.message || 'Invalid schema format');
       return null;
     }
@@ -301,13 +350,19 @@ const CodeEditor = ({ dataModelId, modelData }) => {
         </div>
         <MemoizedEditor value={editorValue} />
         <div className='mt-4 text-sm text-gray-600'>
-          <h3 className='font-semibold mb-2'>Quick Reference:</h3>
-          <ul className='list-disc pl-4 space-y-1'>
-            <li>Use <code className='bg-gray-100 px-1'>entity EntityName {'{'}</code> to define a new entity</li>
-            <li>Basic types: <code className='bg-gray-100 px-1'>string</code>, <code className='bg-gray-100 px-1'>number</code>, <code className='bg-gray-100 px-1'>boolean</code>, <code className='bg-gray-100 px-1'>datetime</code>, <code className='bg-gray-100 px-1'>ID</code></li>
-            <li>Relations: Use entity names as types (e.g., <code className='bg-gray-100 px-1'>user: User</code>)</li>
-            <li>Arrays: Add <code className='bg-gray-100 px-1'>[]</code> for multiple relations (e.g., <code className='bg-gray-100 px-1'>posts: Post[]</code>)</li>
-          </ul>
+          <button
+            className='inline-flex items-center text-gray-600 hover:text-gray-800'
+            aria-label="Show schema hints"
+            onClick={() => setIsHintVisible(true)}
+          >
+            <QuestionMarkCircleIcon className="h-5 w-5" />
+            <span className='ml-2'>Schema Hints</span>
+          </button>
+          
+          <SchemaHintsModal
+            isOpen={isHintVisible}
+            onClose={() => setIsHintVisible(false)}
+          />
         </div>
       </div>
 

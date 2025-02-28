@@ -24,9 +24,11 @@ model DataModel {
     updatedAt   DateTime     @updatedAt
     user        User         @relation(fields: [userId], references: [id])
     userId      Int
+    requirements Json?
     // Relations to actual model components
     entities    ModelEntity[]
     relations   Relation[]
+    chatMessages ChatMessage[]
 }
 
 model ModelEntity {
@@ -49,8 +51,12 @@ model Field {
     name        String
     fieldType   String    
     isRequired  Boolean   @default(false)
+    isUnique    Boolean   @default(false)
+    isIndex     Boolean   @default(false)
+    isPrimary   Boolean   @default(false)
     defaultValue String?
-    constraints Json?     // This is now supported in PostgreSQL
+    enumValues  Json?     // Store enum values as JSON array
+    constraints Json?     
     entity      ModelEntity @relation(fields: [entityId], references: [id])
     entityId    Int
     fromRelations Relation[] @relation("FromField")
@@ -76,6 +82,15 @@ model Relation {
     dataModelId Int
     createdAt   DateTime  @default(now())
     updatedAt   DateTime  @updatedAt
+}
+
+model ChatMessage {
+    id          Int       @id @default(autoincrement())
+    content     String
+    sender      String    // 'user' or 'ai'
+    timestamp   DateTime  @default(now())
+    dataModel   DataModel @relation(fields: [dataModelId], references: [id])
+    dataModelId Int
 }
 
 enum DbType {
